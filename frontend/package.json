@@ -1,0 +1,25 @@
+{
+  "name": "bnoc-web",
+  "private": true,
+  "version": "2.2.0",
+  "type": "module",
+  "packageManager": "pnpm@12.3.4",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/bootstrap/*.test.mjs src/session/*.test.mjs src/workflow/*.test.mjs src/query/*.test.mjs src/store/*.test.mjs src/api/*.test.mjs src/app/*.test.mjs"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/node": "22.20.2",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "5.9.3",
+    "vite": "8.3.0"
+  }
+}
