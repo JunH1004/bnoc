@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { uploadAttachmentBatch, attachmentSubmissionBlocked } from './attachmentQueue.mjs';
+test('a delayed upload uses the latest form callback and attachment list', async () => {
+  let finish;
+  const promise = new Promise(resolve => { finish=resolve; });
+  let draft = { detail:'before',attachments:[] };
+  let current = { files:draft.attachments,onChange:attachments => { draft={ detail:'before',attachments }; } };
+  const pending = uploadAttachmentBatch([new File(['text'],'문서.txt')], () => promise, () => current);
+  draft = { detail:'edited while uploading',attachments:[{ id:'existing' }] };
+  current = { files:draft.attachments,onChange:attachments => { draft={ ...draft,attachments }; } };
+  finish({ id:'uploaded' });
+  assert.deepEqual(await pending,[]);
+  assert.equal(draft.detail,'edited while uploading','UPLOAD_MUST_NOT_RESTORE_OLD_FORM_INPUT');
+  assert.deepEqual(draft.attachments.map(file => file.id),['existing','uploaded']);
+});
+test('single and partial upload failures retain every failed File and block submission until retry or exclusion', async () => {
+  const first=new File(['first'],'첫문서.txt'), second=new File(['second'],'두번째문서.txt');
+  const committed=[];
+  const current={ files:[],onChange:files => committed.push(...files) };
+  const failures=await uploadAttachmentBatch([first,second], async file => { if(file===first) throw new Error('failed'); return { id:'second' }; }, () => current);
+  assert.equal(failures.length,1);
+  assert.equal(failures[0].file,first,'FAILED_FILE_MUST_REMAIN_AVAILABLE_FOR_RETRY');
+  assert.equal(failures[0].file.name,'첫문서.txt');
+  assert.deepEqual(committed,[{ id:'second' }]);
+  assert.equal(attachmentSubmissionBlocked(false,failures),true,'FAILED_UPLOAD_MUST_BLOCK_SUBMISSION');
+  const retried=await uploadAttachmentBatch(failures.map(item=>item.file),async()=>({ id:'retried' }),()=>({ files:committed,onChange:()=>{} }));
+  assert.equal(attachmentSubmissionBlocked(false,retried),false);
+  assert.equal(attachmentSubmissionBlocked(false,[]),false,'EXCLUDED_FAILURE_MAY_UNBLOCK_SUBMISSION');
+  const single=await uploadAttachmentBatch([second],async()=>{ throw new Error('single failure'); },()=>current);
+  assert.equal(single[0].file,second);
+  assert.equal(attachmentSubmissionBlocked(true,[]),true);
+});
