@@ -1,0 +1,50 @@
+:root {
+  color-scheme: light;
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-text: #0F172A;
+  --color-muted: #475569;
+  --color-divider: #CBD5E1;
+  --color-control-border: #64748B;
+  --color-primary: #1D4ED8;
+  --color-primary-hover: #1E40AF;
+  --color-focus: #1D4ED8;
+  --color-danger: #B91C1C;
+  --color-danger-bg: #FEF2F2;
+  --color-warning: #92400E;
+  --color-warning-bg: #FFFBEB;
+  --color-success: #166534;
+  --color-success-bg: #F0FDF4;
+  --color-info: #1E40AF;
+  --color-info-bg: #EFF6FF;
+  --color-neutral: #475569;
+  --color-neutral-bg: #F1F5F9;
+  --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --text-body: 1rem;
+  --text-small: .875rem;
+  --text-page: 1.5rem;
+  --text-section: 1.125rem;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-control: 3px;
+  --radius-card: 3px;
+  --radius-pill: 999px;
+  --control-height: 40px;
+  --header-height: 56px;
+  --nav-height: 52px;
+  --content-width: 1600px;
+  --form-width: 100%;
+  --shadow-dialog: 0 12px 32px rgb(15 23 42 / .18);
+  --z-header: 20;
+  --z-menu: 30;
+  --z-dialog: 100;
+  --z-toast: 110;
+  --motion-duration: 150ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-duration: 0ms; }
+}
