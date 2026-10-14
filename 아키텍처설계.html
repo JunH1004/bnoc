@@ -1,0 +1,3474 @@
+<!doctype html><html lang="ko"><head><meta charset=utf8><style>:root{color-scheme:light;box-sizing:border-box;}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>BNOC 아키텍처 설계 · 백엔드·운영 명세</title>
+<style>
+:root{
+  --bg:#f6f4ef; --surface:#ffffff; --surface-2:#efece3;
+  --ink:#211f1a; --ink-2:#5b574c; --ink-3:#8b8677;
+  --line:#ddd8ca; --line-strong:#c7c1ae;
+  --accent:#c8860b; --accent-ink:#4a3a08; --accent-bg:#fbf0d3;
+  --l-bootstrap:#3f6690; --l-session:#66558c; --l-workflow:#1f6b5c;
+  --l-query:#8a7327; --l-store:#9c4130; --l-screen:#96406a;
+  --edge:#a39c89; --edge-cmd:#b0503c; --edge-query:#2f6f8a; --edge-calc:#8b8677;
+  font-size:16px;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#181715; --surface:#221f1c; --surface-2:#2a2723;
+    --ink:#ece8df; --ink-2:#b7b1a2; --ink-3:#847e6f;
+    --line:#3a362e; --line-strong:#4a4536;
+    --accent:#e8b93f; --accent-ink:#f3ddaa; --accent-bg:#3c3210;
+    --l-bootstrap:#8fb0d6; --l-session:#b3a0d6; --l-workflow:#6cc0ac;
+    --l-query:#cdb95f; --l-store:#e08066; --l-screen:#e08cae;
+    --edge:#6f6a5c; --edge-cmd:#e6957e; --edge-query:#8fc4dd; --edge-calc:#9c9686;
+  }
+}
+:root[data-theme="dark"]{
+    --bg:#181715; --surface:#221f1c; --surface-2:#2a2723;
+    --ink:#ece8df; --ink-2:#b7b1a2; --ink-3:#847e6f;
+    --line:#3a362e; --line-strong:#4a4536;
+    --accent:#e8b93f; --accent-ink:#f3ddaa; --accent-bg:#3c3210;
+    --l-bootstrap:#8fb0d6; --l-session:#b3a0d6; --l-workflow:#6cc0ac;
+    --l-query:#cdb95f; --l-store:#e08066; --l-screen:#e08cae;
+    --edge:#6f6a5c; --edge-cmd:#e6957e; --edge-query:#8fc4dd; --edge-calc:#9c9686;
+}
+*{box-sizing:border-box;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);margin:0;padding-inline:16px;padding-block:22px 56px;line-height:1.5;}
+h1,h2,h3{font-weight:600;text-wrap:balance;margin:0;}
+.wrap{max-width:1300px;margin:0 auto;}
+header.top{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+header.top h1{font-size:23px;letter-spacing:-0.01em;}
+header.top p{margin:0;color:var(--ink-2);font-size:13.3px;max-width:82ch;}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.6px;color:var(--ink-2);margin-top:2px;}
+.legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.dot{width:9px;height:9px;border-radius:3px;display:inline-block;flex-shrink:0;}
+
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 8px;}
+.toolbar select,.toolbar button{font:inherit;font-size:12.6px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 11px;}
+.toolbar select{max-width:300px;}
+.toolbar button{cursor:pointer;color:var(--ink-2);}
+.toolbar button:hover{border-color:var(--ink-3);color:var(--ink);}
+.toolbar .hint{font-size:11.3px;color:var(--ink-3);margin-left:auto;}
+.zoomgroup{display:inline-flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+.zoomgroup button{border:none;border-radius:0;padding:7px 12px;background:var(--surface);color:var(--ink-2);cursor:pointer;font-size:15px;line-height:1;}
+.zoomgroup button:hover{background:var(--surface-2);color:var(--ink);}
+.zoomgroup .zoom-label{padding:0 8px;font-size:11.3px;color:var(--ink-3);min-width:36px;text-align:center;font-family:var(--mono);user-select:none;}
+#sr-context{display:none;background:var(--accent-bg);border:1px solid var(--accent);color:var(--accent-ink);border-radius:8px;padding:9px 12px;font-size:12.4px;margin-bottom:10px;}
+
+#map-scroll{border:1px solid var(--line);border-radius:10px;background:var(--surface-2);overflow:auto;height:660px;position:relative;cursor:grab;}
+body.panning-active,body.panning-active *{cursor:grabbing !important;user-select:none !important;}
+#map-zoomwrap{position:relative;}
+#map-inner{position:relative;transform-origin:0 0;}
+#edges{position:absolute;left:0;top:0;}
+.node{position:absolute;background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;overflow:hidden;cursor:pointer;transition:opacity .35s, box-shadow .35s;}
+.node:hover{box-shadow:0 2px 10px rgba(0,0,0,.12);}
+.node:focus-visible{outline:2px solid var(--accent);}
+.node.dim{opacity:.2;}
+.node.sr-hl{box-shadow:0 0 0 3px var(--accent);}
+.node-bar{height:4px;}
+.node-body{padding:9px 10px 9px;}
+.node-kr{font-weight:600;font-size:13.4px;color:var(--ink);}
+.node-head2{display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-top:1px;}
+.node-id{font-family:var(--mono);font-size:9.8px;color:var(--ink-3);word-break:break-word;}
+.node-tag{font-size:9.5px;color:var(--ink-3);flex-shrink:0;}
+.node-resp{font-size:11.4px;color:var(--ink-2);margin-top:5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.node-methods{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-2);line-height:1.55;}
+.node-methods b{font-weight:500;color:var(--ink);}
+.node-more{color:var(--ink-3);font-style:italic;}
+.node-foot{margin-top:6px;font-size:10.3px;color:var(--accent-ink);background:var(--accent-bg);display:inline-block;padding:1px 7px;border-radius:999px;}
+
+.edge-group{transition:opacity .35s;}
+.edge-group.dim{opacity:.08;}
+.edge-group path.edge{fill:none;stroke-width:1.6;opacity:.8;marker-end:url(#arrow);transition:stroke-width .35s;}
+.edge-group.kind-cmd path.edge{stroke:var(--edge-cmd);}
+.edge-group.kind-query path.edge{stroke:var(--edge-query);}
+.edge-group.kind-calc path.edge{stroke:var(--edge-calc);}
+.edge-group path.edge.dashed{stroke-dasharray:5 4;}
+.edge-group.hl path.edge{stroke-width:2.8;opacity:1;}
+.edge-group.hl .edge-label{font-weight:500;}
+.edge-label{font-family:var(--sans);font-size:10.6px;fill:var(--ink-2);pointer-events:none;}
+.edge-group.kind-cmd .edge-label{fill:var(--edge-cmd);}
+.edge-group.kind-query .edge-label{fill:var(--edge-query);}
+.edge-group.kind-calc .edge-label{fill:var(--ink-3);}
+.edge-label-bg{fill:var(--surface-2);pointer-events:none;}
+
+#panel{margin-top:14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:16px;min-height:70px;}
+#panel .placeholder{color:var(--ink-3);font-size:12.6px;}
+#panel .pkr{font-weight:600;font-size:16px;color:var(--ink);}
+#panel .pid{font-family:var(--mono);font-size:11.5px;color:#fff;padding:2px 8px;border-radius:6px;margin-left:8px;}
+#panel .player{font-size:11.3px;color:var(--ink-3);margin-left:8px;}
+#panel .presp{font-size:13px;color:var(--ink-2);margin:10px 0 12px;}
+.methods-full{display:flex;flex-direction:column;gap:6px;margin-bottom:6px;}
+.method{background:var(--surface-2);border-radius:7px;padding:8px 10px;}
+.method .plain{font-size:12.6px;color:var(--ink);}
+.method .sig{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:3px;}
+.row-label{font-size:10.7px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);margin:12px 0 6px;}
+.chips{display:flex;flex-wrap:wrap;gap:5px;}
+.chip{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font-size:11.5px;padding:3px 9px;border-radius:999px;cursor:pointer;font-family:var(--sans);}
+.chip:hover{border-color:var(--ink-3);}
+.chip.sr{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-ink);}
+.empty{color:var(--ink-3);font-size:11.6px;font-style:italic;}
+
+.deploy-note{border:1.5px dashed var(--line-strong);border-radius:10px;padding:14px;margin-top:14px;}
+.deploy-note h3{font-size:13.5px;font-weight:600;color:var(--ink);}
+.deploy-note .kid{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:6px;}
+.deploy-note p{font-size:12.3px;color:var(--ink-2);margin:8px 0 10px;}
+footer.credit{margin-top:24px;font-size:11.6px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:12px;}
+
+
+.boundaries{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px 0 6px;}
+.boundaries button{border:1px solid var(--line-strong);border-radius:8px;padding:9px 14px;background:var(--surface);color:var(--ink);text-align:left;font:inherit;cursor:pointer;}
+.boundaries button[data-domain="backend"]{border:2px solid var(--l-workflow);}
+.boundaries button[data-domain="frontend"]{border:2px solid var(--l-screen);}
+.boundaries b{display:block;font-size:13px;}.boundaries span,.crossing,.scope-note{font-size:12px;color:var(--ink-2);}
+.scope-note{margin:8px 0;}.scope-note a,.doc-links a{color:var(--l-bootstrap);}
+.zone{position:absolute;border:2px dashed var(--line-strong);border-radius:12px;background:var(--bg);pointer-events:none;opacity:.7;}
+.zone.backend{border-color:var(--l-workflow);}.zone.frontend{border-color:var(--l-screen);}
+.zone-label{position:absolute;top:12px;left:16px;color:var(--ink);font-size:16px;font-weight:600;}
+.node{min-height:190px;}.node.selected{outline:2px solid var(--ink);outline-offset:2px;}
+.node-tag{font-size:10px;white-space:nowrap;}.node-id{font-size:10px;}.node-resp{-webkit-line-clamp:2;}
+.node-methods{font-size:11px;}.node-foot{margin-top:5px;}
+#panel{overflow-wrap:anywhere;}#panel .pid{display:inline-block;margin:4px 8px 0 0;}
+#panel .player{display:block;margin:5px 0 0;font-weight:600;color:var(--ink-2);}
+.contract-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0;}
+.contract{background:var(--surface-2);padding:10px;border-radius:7px;font-size:12.5px;}
+.contract b{display:block;font-size:11px;margin-bottom:5px;}.pending{border-left:3px solid var(--accent);padding:8px 10px;background:var(--accent-bg);font-size:12px;}
+.connection{padding:8px 0;border-bottom:1px solid var(--line);font-size:12px;}.connection p{margin:4px 0;color:var(--ink-2);}
+#sr-context{line-height:1.7;}#sr-context h2{font-size:16px;}#sr-context p{margin:5px 0;}#sr-context a{color:inherit;}
+#sr-context .chips{margin-top:8px;}.requirement-meta{font-size:11.5px;color:var(--ink-2);}
+#review-list{display:grid;gap:10px;}#review-list p{margin:4px 0;}.deploy-note summary{cursor:pointer;font-size:14px;font-weight:600;}
+button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
+.toolbar select{max-width:min(330px,100%);}#map-scroll{height:570px;}
+
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<div class="wrap">
+  <header class="top">
+    <h1>BNOC 아키텍처 설계</h1>
+    <p><b>백엔드·부대 운영 · 승인된 설계 0.7 · PC 완성도 개선</b> — 요구사항·유스케이스를 기능 명세로 구체화하고, 담당 모듈에 배정했습니다. 원래 모듈 카드·함수·연결 탐색 방식은 유지했습니다.</p>
+    <p>왼쪽은 외부 연동·저장소, 가운데는 <b>백엔드 서버</b>, 오른쪽은 <b>프런트엔드</b>입니다. 화살표는 호출하는 곳에서 호출받는 곳을 가리킵니다. 모듈을 누르면 주고받는 값과 실패 조건을 확인합니다.</p>
+    <p class="doc-links"><a href="요구사항.md#current-requirements">요구사항</a> · <a href="유스케이스.md#current-usecases">유스케이스</a> · <a href="시스템요구사항.md#current-spec">기능 명세</a> · <a href="아키텍처설계.md#allocation">모듈 배정</a> · <a href="개발명세서.md#api">개발 명세</a></p>
+    <div class="legend" id="legend"></div>
+  </header>
+  <nav class="boundaries" aria-label="실행 영역"><button type="button" data-domain="frontend"><b>프런트엔드</b><span>화면·입력·API 호출</span></button><span class="crossing">HTTPS API</span><button type="button" data-domain="backend"><b>백엔드 서버</b><span>권한·업무 규칙·조회·저장</span></button><span class="crossing">서버만 연결</span><button type="button" data-domain="storage"><b>영구 저장소</b><span>DB·비공개 첨부</span></button><button type="button" data-domain="external"><b>외부 연동</b><span>실제 경계·대회용 모의 제공자</span></button></nav>
+  <p class="scope-note" id="integration-note"><b>대회 연동:</b> 모의 서버가 인증·GPS·CPCON 정보를 제공하고, BNOC 서버가 세션·권한·수집·저장·조회합니다. 실제 연동 경로는 후속 전환 대상입니다. <a href="#module=DemoIdentityProvider">모의 인증</a> · <a href="#module=DemoSituationFeed">모의 상황</a> · <a href="#sr=SR-BE-035">CPCON 기능</a></p>
+  <p class="scope-note">업무 결정과 기술 제안을 구분합니다. 제품은 설계 0.7의 업무를 유지하고 승인된 PC 완성도 개선을 진행하며 이 지도는 설계 문서입니다. 서버 실행·실제 연동 증거가 아닙니다. <a href="#review-items">설계값·후속 조건 보기</a></p>
+  <div class="toolbar">
+    <select id="sr-select" aria-label="시스템 요구사항 선택"><option value="">기능 명세 선택…</option></select>
+    <select id="module-select" aria-label="모듈 바로가기"><option value="">모듈 바로가기…</option></select>
+    <button id="sr-clear" type="button">강조 해제</button>
+    <div class="zoomgroup" role="group" aria-label="확대·축소">
+      <button id="zoom-out" type="button" aria-label="축소">−</button>
+      <span class="zoom-label" id="zoom-label">100%</span>
+      <button id="zoom-in" type="button" aria-label="확대">+</button>
+    </div>
+    <button id="zoom-fit" type="button">화면에 맞추기</button>
+    <span class="hint">휠로 확대·축소 · 드래그로 이동 · 클릭하면 연결 관계와 전체 설명이 아래에 펼쳐짐</span>
+  </div>
+  <div id="sr-context"></div>
+
+  <div id="map-scroll"><div id="map-zoomwrap"><div id="map-inner"></div></div></div>
+
+  <div id="panel"><div class="placeholder">위 지도의 상자를 클릭하면 무엇을 하는 곳인지, 무엇을 주고받는지 전체 설명이 여기 펼쳐집니다.</div></div>
+
+  <details class="deploy-note" id="review-items"><summary>설계값·후속 조건 — 업무 답변과 구분</summary><p>업무 답변과 기술 설계값을 반영했습니다. 항목을 누르면 정한 조건과 실제 공군 연동 때 확인할 후속 조건을 구분해 볼 수 있습니다.</p><div id="review-list"></div></details>
+  <footer class="credit">설계 0.7 · 업무 답변 반영 · 구현 기준. 원본 복구는 Git <code>fed2b10</code>에 보존했습니다. 2026-10-13 사용자 구현 승인을 받았습니다. 실행 결과는 기존 개발·업무 검증 기록에서 확인합니다.</footer>
+</div>
+
+<script>
+const SRS = {
+  "SR-BE-001": {
+    "t": "SSO 로그인과 서버 세션",
+    "x": "서비스 진입 시 선택된 인증 제공자의 결과를 BNOC 서버에서 검증하고 서비스 권한을 결합한다. 대회 모드에서는 모의 인증 서버를 사용하며 같은 서버 세션·권한 검사를 거친다. 자체 회원가입과 운영 화면의 자유 역할 전환은 제공하지 않는다. 공개 시연에서는 브라우저 로그인 위치를 BNOC 공개 Origin의 /identity로 안내하고, 서버의 확인표 검증은 loopback 모의 제공자 주소를 사용한다.",
+    "input": "서버 실행 설정으로 고정된 제공자, 시작 브라우저의 서버 사전 인증 상태·로그인 요청과 연결된 인증 결과 또는 모의 단회 확인표, 서버에 등록된 시험 식별자·서비스 권한, 공개 HTTPS Origin·loopback 제공자 주소",
+    "output": "현재 사용자에게 허용된 화면·행동과 서버 세션, 로그인 상태, 같은 Origin의 /identity 로그인 위치",
+    "failure": "미인증·위조·만료·재사용·요청 불일치·시작 브라우저 불일치는 거절한다. 로그인 요청은 시작 브라우저의 서버 사전 인증 상태에 묶고 인증 완료 시 함께 소비한다. 운영 모드에서는 모의 인증을 거절하며 실제 연동 실패 시 모의 인증으로 자동 전환하지 않는다. 브라우저의 역할 값으로 권한을 만들지 않는다. 공개 프록시는 정확한 GET/POST /identity만 허용하며 /identity/verify·/identity/issue·/control·/feeds/*를 외부에 노출하지 않는다.",
+    "basis": "FR-001·NFR-002, SSO 사용자 결정·대회 모의 연동 사용자 결정",
+    "usecase": "로그인과 역할 §1",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "기술 설계값: 세션 유휴 30분·절대 8시간, 로그인 요청 5분·단회 확인표 60초. 서버 시험 식별자에 역할·부서·작업반 권한을 매핑한다. 실제 공군 SSO 프로토콜·로그아웃·검증은 후속 실연동 조건. 공개 시연의 HTTPS Origin은 서버 시작 설정으로 고정하며 공개 쿠키의 Secure·HttpOnly·SameSite=Lax와 기존 CSRF·Origin 검사를 유지한다.",
+    "previous": "001·003·004",
+    "sources": [
+      {
+        "label": "FR-001·NFR-002, SSO 사용자 결정·대회 모의 연동 사용자 결정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "로그인과 역할 §1",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "AirForceSSO",
+      "DemoIdentityProvider",
+      "SessionManager",
+      "ApiController",
+      "ApiClient"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-002": {
+    "t": "역할·작업반 권한 관리",
+    "x": "권한 관리자가 역할·작업반·부서 담당자 쓰기 권한을 부여·회수하고 이력을 남긴다. 각 부서 담당자는 자기 명부·현황을 관리한다. 변경은 다음 요청부터 적용하며 권한 관리자의 업무 내용 수정·자기 권한 상승은 허용하지 않는다.",
+    "input": "관리 대상의 서비스 계정 참조, 부여/회수할 권한, 현재 버전",
+    "output": "변경된 권한·감사 이력. 후속 요청과 재시도에도 새 권한 적용",
+    "failure": "관리 권한 없음·자기 권한 상승·오래된 버전은 거절. 계정 생성 기능으로 확대하지 않음.",
+    "basis": "ACT-04·NFR-003",
+    "usecase": "UC-012 역할·작업반 권한 관리",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "기술안: 최초 관리자는 서버 시작 설정의 외부 식별자로 지정하고 서버에서 서비스 권한에 연결한다. 브라우저 가입·첫 로그인 자동 관리자는 없다. 실운영 관리자 복구·인수는 후속 고도화 조건.",
+    "previous": "",
+    "sources": [
+      {
+        "label": "ACT-04·NFR-003",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-012 역할·작업반 권한 관리",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "SessionManager",
+      "AccessPolicy",
+      "AccessManagementService",
+      "AccessManagementView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-003": {
+    "t": "모든 API의 서버 권한 검사",
+    "x": "서버는 인증된 현재 사용자와 저장된 소유·소속을 기준으로 명령·조회·첨부 접근을 검사한다. 공유 작업 목록과 정비 상세의 조회 범위는 별도로 적용한다.",
+    "input": "서버 세션, 행동, 대상 소유/부서/작업반, 허용 응답 필드",
+    "output": "허용된 행동 또는 역할별로 걸러진 데이터",
+    "failure": "브라우저가 보낸 역할·행동자·소속은 권한 근거로 사용하지 않음. 권한 밖 대상의 내용·버전은 반환하지 않음.",
+    "basis": "FR-025·NFR-003·004, 공유 조회 결정",
+    "usecase": "공통 화면 동작·UC-008·009",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "003·023·025",
+    "sources": [
+      {
+        "label": "FR-025·NFR-003·004, 공유 조회 결정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "공통 화면 동작·UC-008·009",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "DemoIdentityProvider",
+      "SessionManager",
+      "AccessPolicy",
+      "PersonnelService",
+      "NightDutyService",
+      "AccessManagementService",
+      "RequestQueryService",
+      "OpsQueryService",
+      "SharedWorkQueryService",
+      "HistoryAndNotificationQueryService",
+      "SituationService",
+      "DirectiveService",
+      "AttachmentService",
+      "ApiController",
+      "RequestDetailWorkspace"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-004": {
+    "t": "직접 신청·BNOC 대리 등록",
+    "x": "요청자 직접 등록과 BNOC 대리 등록은 같은 요청 구조를 만든다. 직접 등록은 본인 계정을 연결하고 대리는 실제 요청자 텍스트만 기록한다. 등록자·등록시각은 서버가 기록한다.",
+    "input": "기존 공통 필수 입력, 유형별 분류, 선택 정보·첨부 참조, 대리 등록의 실제 요청자 텍스트",
+    "output": "대기 요청·짧은 요청 번호·등록 이력·BNOC 알림",
+    "failure": "필수값 누락·허용하지 않은 역할·첨부 연결 실패는 성공으로 표시하지 않음. 텍스트에서 계정을 추정하지 않음.",
+    "basis": "FR-003~008",
+    "usecase": "UC-001·요청 등록 §2",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "007·008·009·010·011·012",
+    "sources": [
+      {
+        "label": "FR-003~008",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-001·요청 등록 §2",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "NotificationRules",
+      "RequestCommands",
+      "RequestRegistrationForm"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-005": {
+    "t": "지원 유형과 선택 입력 보존",
+    "x": "장비/체계와 회의 지원의 기존 조건부 입력을 유지한다. 희망 일정은 선택이고 실제 작업 일정과 구분한다. 정비대상자 정보를 사용하면 기존 네 항목을 함께 받는다. 필수/선택 정보를 표시하고 선택 영역을 접어도 값을 보존한다. 그룹 유형 오류는 해당 선택칸의 오류·첫 초점에 연결한다.",
+    "input": "체계·자원·작업 유형 또는 회의 유형, 내용·위치·군내전화, 선택 희망 일정·문서·장비 정보",
+    "output": "정규화한 요청 입력과 해당 항목의 오류",
+    "failure": "희망 일정 필수화·새 자원 분류의 임의 필수화 금지. 컴퓨터·프린터·회선·전화·회의 범위를 누락하지 않음.",
+    "basis": "FR-005·006, 사용자 지원 대상 설명",
+    "usecase": "UC-001·요청 등록 §2",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "화면·기술안: 컴퓨터 표시명을 사용하고 기존 코드와 호환한다. 기존 장비/체계 망 구분은 유지, 전화 세부 유형은 선택 입력이다. 새 필수값을 늘리지 않는다.",
+    "previous": "007·009·010·024",
+    "sources": [
+      {
+        "label": "FR-005·006, 사용자 지원 대상 설명",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-001·요청 등록 §2",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "RequestCommands",
+      "AfterActionReportCommand",
+      "RequestRegistrationForm",
+      "AfterActionReportForm"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-006": {
+    "t": "실제 첨부 업로드·연결·다운로드",
+    "x": "허용된 등록/수정자는 파일을 업로드하고 요청에 연결한다. 다운로드는 매번 해당 요청의 상세 권한을 검사한다. 파일 내용은 영구 저장하되 공개 저장 주소를 노출하지 않는다.",
+    "input": "파일 내용·표시명·크기·형식, 임시 업로드 참조, 대상 요청·버전",
+    "output": "업로드 상태·승인된 첨부 표시정보·권한 검사 후 파일 내용",
+    "failure": "파일 검증/연결 실패·권한 없음·미존재를 구분. 외부 파일 저장은 DB 롤백만으로 취소됐다고 단정하지 않음.",
+    "basis": "FR-036·NFR-004·005",
+    "usecase": "요청 등록 §2·목록 상세 §6",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "기술 설계값: 문서·이미지 허용 목록, 파일당 10MiB·대상당 10개/합계 50MiB, 미연결 임시 24시간·매시간 정리. 상세 형식 검증과 제거 파일의 이력 보존은 개발 명세 기술값을 따른다.",
+    "previous": "032",
+    "sources": [
+      {
+        "label": "FR-036·NFR-004·005",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "요청 등록 §2·목록 상세 §6",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "FileObjectStore",
+      "TransactionStore",
+      "AccessPolicy",
+      "AttachmentService",
+      "ApiController",
+      "ApiClient",
+      "RequestRegistrationForm",
+      "AfterActionReportForm"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-007": {
+    "t": "요청 내용 수정",
+    "x": "본인 요청자는 비취소 요청이 작업 없는 접수 단계이거나 모든 유효 작업의 현재 상태가 배정이면 수정할 수 있다. 과거 시작 이력만으로 금지하지 않는다. BNOC는 전체 요청의 허용 필드를 보완한다. 자동 등록정보·작업반 일정·분류는 일반 수정 경로로 바꾸지 않는다.",
+    "input": "요청 번호·요청 버전, 내용·위치·연락처·희망 일정·문서·첨부",
+    "output": "수정된 요청과 변경 이력. 바뀐 내용이 없으면 업무 이력·버전 추가 없음",
+    "failure": "취소 요청·권한 없음·오래된 버전 거절. 일반/긴급을 일반 수정 필드로 우회 변경할 수 없음.",
+    "basis": "FR-009·010·027",
+    "usecase": "UC-006·요청 수정",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "최신 사용자 결정으로 재수정 범위 확정. 작업 중·완료·미해결 반환이 하나라도 있으면 요청자 수정 거절; 재배정으로 대체된 반환은 유효 작업에서 제외한다.",
+    "previous": "013·027·042",
+    "sources": [
+      {
+        "label": "FR-009·010·027",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-006·요청 수정",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "RequestCommands",
+      "RequestDetailWorkspace"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-008": {
+    "t": "본인 요청 취소",
+    "x": "계정 연결된 본인 요청자는 상태와 무관하게 요청을 취소할 수 있다. 이후 모든 작업 조작을 막고 이전 기록을 보존한다. 재개·BNOC 대리 취소를 추가하지 않는다.",
+    "input": "요청 번호·요청 버전·같은 제출 식별값",
+    "output": "취소 요청·취소 이력·기존 규칙의 내부 알림",
+    "failure": "이미 취소됨·권한 없음·버전 충돌 거절. 작업 저장으로 취소를 되살릴 수 없음.",
+    "basis": "FR-009·031·033",
+    "usecase": "UC-007 요청 취소",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "013·021·023·027·031·042",
+    "sources": [
+      {
+        "label": "FR-009·031·033",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-007 요청 취소",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "NotificationRules",
+      "RequestCommands",
+      "RequestDetailWorkspace"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-009": {
+    "t": "배정 전 문서 대기",
+    "x": "BNOC는 아직 작업이 없는 대기 요청을 문서 대기로 바꾼다. 문서 확인 후 기존 배정으로 진행한다. 별도 해제 버튼·승인 단계를 새로 만들지 않는다.",
+    "input": "요청 번호·요청 버전",
+    "output": "문서 대기 상태·이력·계정 연결 요청자 알림",
+    "failure": "배정된 요청·취소 요청·다른 역할의 전환은 거절.",
+    "basis": "FR-011의 후속 상태전이 정정",
+    "usecase": "UC-002·BNOC 접수 배정 §3",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "014·015·031",
+    "sources": [
+      {
+        "label": "FR-011의 후속 상태전이 정정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-002·BNOC 접수 배정 §3",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "NotificationRules",
+      "RequestCommands",
+      "RequestDetailWorkspace"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-010": {
+    "t": "BNOC의 작업 부서 배정·배정 시각 기록",
+    "x": "BNOC는 일반/긴급과 동등한 작업 부서 하나 이상을 정해 배정한다. 요청 내용 자체가 작업지시이며 반장 지정·별도 지시문은 없다. 접수 시간은 배정 성공 시 서버가 기록하는 배정 시각이다. 작업 일정은 작업반이 정하며 희망 일정을 복사하지 않는다.",
+    "input": "요청 번호·요청 버전, 중복 없는 작업 부서, 일반/긴급. 배정 시각·반장·작업 일정은 브라우저 입력으로 받지 않는다.",
+    "output": "부서별 배정 작업·작업 번호·배정 시각(접수 시간)·요청 상태·이력·작업반 알림을 함께 저장",
+    "failure": "일부 부서만 저장 금지. 미분류·유효하지 않은 부서·기존 작업 존재 시 최초 배정 거절. 반장 입력 없음.",
+    "basis": "FR-012~014, 최신 답변: 접수 시간=배정 시각·반장 지정 제거",
+    "usecase": "UC-002·004·BNOC 접수 배정 §3",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "업무 결정 완료. 최초/재배정 시각은 사건별 서버 자동 기록하고 재시도는 최초 시각 유지. 과거 배정 시각 정정 기능은 추가하지 않는다. 담당 인원 선택은 SR-BE-012에서 작업반 책임으로 처리한다.",
+    "previous": "016·040·041",
+    "sources": [
+      {
+        "label": "FR-012~014, 최신 답변: 접수 시간=배정 시각·반장 지정 제거",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-002·004·BNOC 접수 배정 §3",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "NotificationRules",
+      "RequestCommands",
+      "RequestDetailWorkspace"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-011": {
+    "t": "BNOC의 일반·긴급 결정과 사후 정정",
+    "x": "일반·긴급은 BNOC가 최초 배정 전 반드시 정하며 배정 후에도 정정할 수 있다. 반환 재배정은 기존 분류를 유지한다. 완료 후보고는 미분류 등록 후 BNOC가 사후 분류한다. 신청자·작업반에게 분류 권한을 주지 않고 후보고 승인 단계는 없다.",
+    "input": "BNOC의 명시적 general 또는 urgent 선택, 변경 시 요청 번호·요청 버전·제출 식별값",
+    "output": "최초 배정과 함께 저장된 분류 또는 BNOC의 사후 분류 변경·전후 이력. 작업 상태·일정·완료 기록은 유지한다.",
+    "failure": "일반 자동 기본값 금지. 긴급 선택으로 일정·기한·알림 수신자·정렬을 임의 변경하지 않음.",
+    "basis": "공고 R05, 일반·긴급 사용자 답변(FR-030 대체)",
+    "usecase": "BNOC 접수 배정 §3",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "최신 사용자 답변으로 예외 확정. 사후 변경은 RequestCommands.changePriority의 별도 허용 명령이며 일반 수정·작업 저장으로 우회하지 않는다.",
+    "previous": "024",
+    "sources": [
+      {
+        "label": "공고 R05, 일반·긴급 사용자 답변(FR-030 대체)",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "BNOC 접수 배정 §3",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "RequestCommands",
+      "AfterActionReportCommand",
+      "RequestDetailWorkspace"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-012": {
+    "t": "작업반의 담당 인원·상태·일정·메모 저장",
+    "x": "작업반은 자기 작업의 담당 인원을 자기 반 명부에서 선택하고 네 상태·선택 일정·메모를 명시적으로 저장한다. 여러 인원을 선택할 수 있으나 선택은 새 필수 시작/완료 조건이 아니다. 선택 담당 인원과 SSO 저장 행동자·완료 처리자는 별개다.",
+    "input": "요청/작업 번호·작업 버전, 선택 상태·일정·메모·상태별 정보, 선택 담당 인원 참조 목록",
+    "output": "자기 작업의 담당 인원·상태·일정 변경과 이력, 재계산된 요청 상태. 화면은 성공 후 갱신한다.",
+    "failure": "다른 반·취소 요청·대체된 반환·후보고 완료 작업 수정 거절. 다른 부서/반 인원 참조·중복 참조 거절. 담당 인원 미선택을 이유로 완료 금지하지 않으며 상태 선택만으로 저장하지 않는다.",
+    "basis": "FR-016~019, 일정 결정 사용자 답변",
+    "usecase": "UC-003·004·작업반 처리 §4",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "018·020·033·034·042",
+    "sources": [
+      {
+        "label": "FR-016~019, 일정 결정 사용자 답변",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-003·004·작업반 처리 §4",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "RequestStatusCalculator",
+      "NotificationRules",
+      "WorkItemCommands",
+      "PersonnelService",
+      "WorkExecutionPanel"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-013": {
+    "t": "완료정보와 완료 정정",
+    "x": "완료 저장 때 서버가 완료자·시각을 기록하고 완료 메모는 선택으로 받는다. 완료에서 다른 상태로 바꾸면 현재 완료정보만 해제하고 과거 이력은 보존한다.",
+    "input": "자기 작업 번호·버전·완료 상태·선택 완료 메모",
+    "output": "완료정보 또는 해제된 현재 완료정보, 변경 이력",
+    "failure": "장문 보고·요청자 완료 승인·별도 종결 상태를 추가하지 않음.",
+    "basis": "FR-020·031·033",
+    "usecase": "UC-003·작업반 처리 §4",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "019·020·021",
+    "sources": [
+      {
+        "label": "FR-020·031·033",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-003·작업반 처리 §4",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "RequestStatusCalculator",
+      "NotificationRules",
+      "WorkItemCommands",
+      "WorkExecutionPanel"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-014": {
+    "t": "반환·반환 정정·재배정",
+    "x": "작업반은 사유를 입력해 반환하고 BNOC는 다른 작업반으로 재배정한다. 재배정 전에는 원래 반이 반환을 정정할 수 있으며 대체 후에는 원래 작업을 잠근다.",
+    "input": "반환 작업 번호·작업 버전, 반환 사유 또는 다른 작업반 목록",
+    "output": "반환 이력·BNOC 알림 또는 원래 반환과 새 작업의 상호 연결·배정 알림",
+    "failure": "사유 없는 반환·같은 반 재배정·취소·대체 작업 변경 거절. 재배정과 반환 정정의 동시 성공 금지.",
+    "basis": "FR-015·016·021",
+    "usecase": "UC-005 작업 반환·재배정",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "최신 사용자 결정: 재배정은 기존 요청 분류를 유지. 새 배정 사건에 서버 시각을 기록하며 기존 반환·담당 인원·이력은 보존하고 새 작업의 담당 인원은 새 작업반이 선택한다.",
+    "previous": "017·020·021·027·031",
+    "sources": [
+      {
+        "label": "FR-015·016·021",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-005 작업 반환·재배정",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "RequestStatusCalculator",
+      "NotificationRules",
+      "WorkItemCommands",
+      "RequestDetailWorkspace",
+      "WorkExecutionPanel"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-015": {
+    "t": "요청 전체 상태 계산",
+    "x": "취소를 우선하고 문서 대기, 진행 작업, 미해결 반환, 전체 완료, 배정, 미배정 순의 기존 규칙을 적용한다. 대체된 반환은 제외하며 유효 작업이 모두 완료돼야 요청이 완료다.",
+    "input": "현재 요청과 유효 작업 상태·반환 대체 관계",
+    "output": "요청 전체 상태와 상태 변화 여부",
+    "failure": "일부 완료를 전체 완료로 표시하거나 반환을 완료로 계산하지 않음. 동시에 다른 반이 수정해도 최신 상태로 계산.",
+    "basis": "FR-017·021·032·033",
+    "usecase": "UC-003~005·008",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "020·021",
+    "sources": [
+      {
+        "label": "FR-017·021·032·033",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-003~005·008",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "RequestStatusCalculator",
+      "WorkItemCommands",
+      "WorkExecutionPanel"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-016": {
+    "t": "완료된 선조치 후보고",
+    "x": "작업반이 직접 받은 일을 끝낸 후 요청·자기 반 완료 작업·이력·BNOC 알림을 함께 생성한다. 미분류로 저장하고 BNOC가 나중에 분류한다. 승인·미완료 별도 등록·BNOC 전달·자동 역할 전환은 없다.",
+    "input": "실제 요청자 텍스트·공통 입력·실제 시작/완료시각·사유·완료 사실, 선택 메모",
+    "output": "완료 요청과 완료 작업, 공개 번호, 후보고 이력",
+    "failure": "미완료이면 완료 객체 생성 금지. BNOC 역할 전환·계정 추정·새 승인함을 만들지 않음.",
+    "basis": "FR-022·023",
+    "usecase": "UC-011·선조치 후보고 §5",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "완료 후보고 흐름 유지 결정. 미완료 후보고는 서버가 거절하고 화면은 입력을 유지한다. 미완료 접수를 위한 새 흐름을 추가하지 않는다.",
+    "previous": "022·040",
+    "sources": [
+      {
+        "label": "FR-022·023",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-011·선조치 후보고 §5",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "NotificationRules",
+      "AfterActionReportCommand",
+      "AfterActionReportForm"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-017": {
+    "t": "권한별 요청 목록·상세",
+    "x": "요청자는 본인 계정 연결 요청, 작업반은 자기 반 관련 요청, BNOC는 전체 요청을 조회한다. 공유 작업 목록을 봐도 상세 권한은 확대되지 않는다.",
+    "input": "서버 세션·공개 요청 번호·조회 조건",
+    "output": "허용된 목록·작업별 상태/일정·상세 필드·편집 버전",
+    "failure": "직접 URL·공개 번호 추정으로 타 요청 상세·연락처·첨부를 열 수 없음. 내부 식별값·원본 이력 객체 제외.",
+    "basis": "FR-024·025·NFR-004",
+    "usecase": "UC-008·009·목록 상세 §6",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "023·025·030",
+    "sources": [
+      {
+        "label": "FR-024·025·NFR-004",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-008·009·목록 상세 §6",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "AccessPolicy",
+      "RequestQueryService",
+      "RequestDetailWorkspace",
+      "RequestListAndSearch"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-018": {
+    "t": "명시적 검색 실행",
+    "x": "검색 조건을 편집하는 동안 기존 결과를 유지하고 검색 버튼·Enter·초기화 때 한 번만 조회한다. BNOC 현황의 빠른 필터는 기존 즉시 적용을 유지한다.",
+    "input": "기간·상태·업무 유형·작업반·위치·요청 번호, BNOC만 요청자 조건",
+    "output": "적용 조건·권한 범위와 일치하는 목록·빈 결과와 성공 조회 조건·확인 시각. 편집 중 조건/이전 결과 구별",
+    "failure": "타이핑마다 조회하거나 요청자 검색 조건을 일반 사용자에게 열지 않음. 조회 실패를 빈 결과로 바꾸지 않음.",
+    "basis": "FR-026·NFR-012",
+    "usecase": "UC-009·목록 검색 §6",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "026·030·034",
+    "sources": [
+      {
+        "label": "FR-026·NFR-012",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-009·목록 검색 §6",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "RequestQueryService",
+      "ApiClient",
+      "RequestListAndSearch"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-019": {
+    "t": "변경 이력과 영구 보존",
+    "x": "등록·수정·취소·문서 대기·배정·반환·상태·일정·메모 변경의 행위자·시각·전후 값을 업무 변경과 함께 기록한다. 완료·취소 요청과 이력을 기한 없이 보존한다.",
+    "input": "인증된 변경 주체·서버 시각·실제 변경 전후",
+    "output": "업무 이력·역할별 공개 이력. 새로고침/재접속 후 유지",
+    "failure": "이력만 실패한 부분 성공 금지. 원본 before/after와 불필요한 개인정보를 그대로 공개하지 않음. 기존 자료 이관 없음.",
+    "basis": "FR-027·NFR-009·011",
+    "usecase": "UC-001~011·목록 상세 §6",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "027·038·040",
+    "sources": [
+      {
+        "label": "FR-027·NFR-009·011",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-001~011·목록 상세 §6",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "RelationalDatabase",
+      "TransactionStore",
+      "AccessPolicy",
+      "RequestCommands",
+      "WorkItemCommands",
+      "AfterActionReportCommand",
+      "PersonnelService",
+      "NightDutyService",
+      "AccessManagementService",
+      "HistoryAndNotificationQueryService",
+      "DirectiveService",
+      "HistoryPanel"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-020": {
+    "t": "체계 내부 알림",
+    "x": "신규/후보고는 BNOC, 배정은 해당 반, 반환/정정은 BNOC, 요청 전체 상태 변화는 계정 연결 요청자에게 기존 조건으로 알림을 저장한다.",
+    "input": "이전/새 상태·변경 행동·실제 계정 연결·서버 시각",
+    "output": "현재 수신자의 알림 목록과 권한 있는 상세 이동",
+    "failure": "대리 요청자 텍스트에서 수신 계정 추정 금지. 외부 문자/메일 없음. 같은 재시도의 중복 알림 금지. 지시 확인과 별개.",
+    "basis": "FR-034·035",
+    "usecase": "알림 §8·UC-001~011",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "기술안: 알림함 활성 화면에서 30초마다 조회, 진입·명시적 새로고침에도 조회. 지연 목표를 실측하지 않고 갱신 실패를 마지막 성공 목록과 구별한다.",
+    "previous": "031",
+    "sources": [
+      {
+        "label": "FR-034·035",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "알림 §8·UC-001~011",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "NotificationRules",
+      "RequestCommands",
+      "WorkItemCommands",
+      "AfterActionReportCommand",
+      "HistoryAndNotificationQueryService",
+      "NotificationInbox"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-021": {
+    "t": "일·주·월 정비 일정",
+    "x": "작업 일정이 있는 작업은 기간별 달력에, 미정인 미완료 작업은 별도 목록에 표시한다. 상세 선택 후 작업반이 기존 권한으로 일정을 수정한다.",
+    "input": "일/주/월·조회 기간·허용 작업반 범위",
+    "output": "작업 번호·작업반·상태·실제 일정과 미정 목록",
+    "failure": "희망일을 작업일로 대체하거나 BNOC 달력 조작으로 작업 일정을 정하지 않음. 일반 요청자 전체 달력 권한 추가 없음.",
+    "basis": "FR-028·공고 R07",
+    "usecase": "UC-010·일 주 월 일정 §7",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "화면·기술안: BNOC 기존 전체 조회·작업반 자기 반 조회 범위. Asia/Seoul, 월요일 주 시작, 시작 포함·다음 날짜 시작 제외. 기간이 겹친 작업은 날짜별 표시하되 작업 건수 중복 없음.",
+    "previous": "028·030",
+    "sources": [
+      {
+        "label": "FR-028·공고 R07",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-010·일 주 월 일정 §7",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "AccessPolicy",
+      "OpsQueryService",
+      "TeamScheduleView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-022": {
+    "t": "기존 BNOC 요청 현황",
+    "x": "BNOC의 기간·상태·작업반·요청 유형별 요청 건수와 요청 목록을 유지한다. 새 공유 작업 현황과 집계 단위·응답을 구분한다. 화면 명칭은 요청 현황(BNOC), 집계는 요청 건수로 명시한다. 성공 조회 조건·확인 시각을 보여준다.",
+    "input": "BNOC 세션·기존 필터",
+    "output": "요청 단위 건수와 같은 조건의 요청 목록",
+    "failure": "상세 필드가 있는 기존 BNOC 응답을 일반 요청자에게 그대로 공개하지 않음.",
+    "basis": "FR-029",
+    "usecase": "UC-010 일정·처리 현황",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "029·030",
+    "sources": [
+      {
+        "label": "FR-029",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-010 일정·처리 현황",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "AccessPolicy",
+      "OpsQueryService",
+      "BnocOverviewView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-023": {
+    "t": "전체 공유 작업 현황",
+    "x": "일반 요청자·작업반·BNOC 모두 부서별 할당·처리·남은 작업과 전체 작업 목록을 조회한다. 지원·대여·신규 설치·이전도 포함하고 상세는 기존 권한을 유지한다. 화면 명칭은 부서별 작업 현황이다. 핵심 집계·선택 목록을 앞에 표시하고 상세 조건·부서 표는 접어도 조회 값과 접근을 유지한다.",
+    "input": "설계 0.6 승인안의 부서·지원/작업 유형·상태·일반/긴급 필터와 페이지 조건",
+    "output": "같은 조회 기준의 작업 집계·구조화된 목록·총건수·기준시각·상세 접근 가능 여부",
+    "failure": "공유 필드 밖 본문·연락처·위치·첨부·인원·내부 메모 제외. 재고·장비 가용 추론 없음. 취소·대체된 반환을 주 집계에서 제외하고 후보고·미배정은 별도 표시한다.",
+    "basis": "공고 R01, 공유 작업 현황 사용자 결정",
+    "usecase": "공유 작업 현황 §9.1",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "설계 0.6 승인 산식 유지: 유효 일반 배정 작업 기준 할당=완료+남은 작업. 남은 작업은 배정/작업 중/미해결 반환이며 반환 하위 건수 표시. 현재 상태 기준이고 기간별 처리 실적은 이번 범위에 없다.",
+    "previous": "",
+    "sources": [
+      {
+        "label": "공고 R01, 공유 작업 현황 사용자 결정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "공유 작업 현황 §9.1",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "AccessPolicy",
+      "SharedWorkQueryService",
+      "OperationsView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-024": {
+    "t": "부서별 일일 병력 현황",
+    "x": "각 부서 담당자가 자기 부서 명부와 선택 날짜의 인원별 휴가·출장·가용을 관리한다. 과거 날짜 입력·수정 허용. 모든 부서 상호 조회이며 정비 작업반 다섯 개로 한정하지 않는다.",
+    "input": "자기 부서 명부 등록/수정/비활성화 항목과 명부 버전 또는 선택 날짜·인원 참조·세 상태·현황 버전. 서버 소속·부서 쓰기 권한 검사",
+    "output": "등록된 인원별 현황·입력 상태별 요약·변경 이력. 승인된 인원 표시만 제공",
+    "failure": "타 부서 수정 금지. 미입력을 가용·0명으로 자동 채우지 않음. SSO가 전체 명부를 준다고 가정하지 않음.",
+    "basis": "공고 R03, 병력 입력·상호 조회 사용자 결정",
+    "usecase": "일일 병력 현황 §9.2",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "사용자 결정 완료. 기술안: 인원 참조·표시명과 부서 관계, 기본 명부 비움. 날짜당 인원 상태 하나. 명부 비활성화 때 과거 현황·작업 참조 보존. 현재 활성 명부에 없다는 이유로 과거 기록의 같은 부서 참조 정정/유지를 거절하지 않는다. 인물처럼 꾸민 시험 식별자를 표시하지 않는다.",
+    "previous": "",
+    "sources": [
+      {
+        "label": "공고 R03, 병력 입력·상호 조회 사용자 결정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "일일 병력 현황 §9.2",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "PersonnelService",
+      "OperationsView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-025": {
+    "t": "부서별 야간 근무자 현황",
+    "x": "각 부서 담당자가 자기 부서 명부의 야간 근무자를 공통 양식으로 등록하고 모든 부서가 서로 조회한다. 근무 시작일 기준이며 과거 입력·수정 허용. 야간 근무가 없는 부서는 입력하지 않아도 된다.",
+    "input": "근무 시작 날짜·자기 부서 근무자 참조 목록·현황 버전. 날짜와 근무자 선택이 기본 입력이며 시작/종료시각·근무 구분을 새 필수값으로 요구하지 않는다.",
+    "output": "등록된 부서별 근무자·변경 이력 또는 등록된 정보 없음",
+    "failure": "타 부서 수정·자동 편성·근무 없음 확인 제출 강제 금지. 미등록을 근무 없음 확인 완료로 표시하지 않음.",
+    "basis": "공고 R03, 야간 근무 입력·생략·상호 조회 사용자 결정",
+    "usecase": "야간 근무자 현황 §9.3",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "사용자 결정 완료. 자기 부서 담당자 권한, 자기 명부 참조·중복 검사, 날짜당 부서 현황 버전 적용. 과거 기록의 같은 부서 인원 참조는 현재 비활성화 뒤에도 유지/정정 가능하다. 미등록을 실제 근무 없음으로 확정하지 않는다.",
+    "previous": "",
+    "sources": [
+      {
+        "label": "공고 R03, 야간 근무 입력·생략·상호 조회 사용자 결정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "야간 근무자 현황 §9.3",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "TransactionStore",
+      "AccessPolicy",
+      "PersonnelService",
+      "NightDutyService",
+      "OperationsView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-026": {
+    "t": "외부에서 자동 수집하는 부대 공통 GPS",
+    "x": "GPS는 외부 자동 수집한 부대 공통 1~5단계를 모든 로그인 사용자에게 제공하며 5단계만 양호다. 대회에서는 모의 정보원으로 같은 수집·검증·저장·조회 경로를 실행한다. 부서별 수동 입력은 없다.",
+    "input": "선택된 GPS 정보원의 단계·원본 기준시각·출처·수집 결과. 대회 출처는 모의이며 내부 표시는 1~5단계.",
+    "output": "부대 공통 단계, 5단계의 양호 표시, 원본 기준시각·마지막 성공/시도 시각·수집 상태·GPS 정보원 표시",
+    "failure": "1~5 밖 값·누락·연결 실패를 양호나 최신 정상으로 표시하지 않음. 마지막 성공 값은 오래된 정보임을 표시하고 미수집과 구분.",
+    "basis": "공고 R02, 최신 답변: 외부 자동 수집·부대 공통·1~5·5=양호·대회 모의 연동 사용자 결정",
+    "usecase": "상황 §9.4",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "기술값: 수집 주기 30초·시간 초과 5초·유효시간 120초, 종류별 설정 분리. 실제 정보원 규격·인증·원본 매핑은 후속 조건.",
+    "previous": "",
+    "sources": [
+      {
+        "label": "공고 R02, 최신 답변: 외부 자동 수집·부대 공통·1~5·5=양호·대회 모의 연동 사용자 결정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "상황 §9.4",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "ExternalSituationFeed",
+      "DemoSituationFeed",
+      "TransactionStore",
+      "AccessPolicy",
+      "SituationService",
+      "OperationsView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-027": {
+    "t": "BNOC 공지게시판과 첨부문서",
+    "x": "공지게시판은 모든 로그인 사용자가 조회한다. BNOC가 제목·본문·첨부를 게시하며 BNOC 계정이면 작성자와 무관하게 수정할 수 있다. 게시 종료·숨김·읽음 확인·미확인자 집계는 없다.",
+    "input": "BNOC의 제목·본문·검증된 첨부 참조·제출 식별값, 수정 시 공지 참조·공지 버전. 조회는 로그인 세션",
+    "output": "공지 목록·본문·첨부 표시정보·권한 검사 후 문서 다운로드, 게시/수정 전후 이력. 기존 공지에 연결된 타 BNOC 업로드 첨부도 유지 가능. 신규 임시 첨부만 현재 업로더 소유 검사. 첨부 제거는 현재 연결 해제 후 이전 자료 보존",
+    "failure": "BNOC 외 게시·임시 첨부 가로채기·권한 없는 글/첨부 조회 거절. 첨부 연결 실패를 게시 성공으로 표시하지 않음.",
+    "basis": "공고 R03, 최신 답변: 공지게시판·BNOC 게시·첨부문서",
+    "usecase": "지시사항 §9.4",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "사용자 결정 완료. 첨부 허용 형식·용량·제목/본문 제한은 개발 명세 기술값. 오래된 공지 수정·첨부 소유/연결 오류는 거절하고 부분 성공 금지.",
+    "previous": "",
+    "sources": [
+      {
+        "label": "공고 R03, 최신 답변: 공지게시판·BNOC 게시·첨부문서",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "지시사항 §9.4",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "FileObjectStore",
+      "TransactionStore",
+      "AccessPolicy",
+      "DirectiveService",
+      "AttachmentService",
+      "ApiController",
+      "ApiClient",
+      "OperationsView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-028": {
+    "t": "업무·이력·알림의 함께 저장",
+    "x": "서버가 업무 변경·이력·내부 알림·성공 영수증을 한 DB 트랜잭션으로 저장한다. 요청+복수 작업, 후보고 요청+완료 작업을 부분 성공시키지 않는다.",
+    "input": "검증된 명령·현재 데이터·변경 결과",
+    "output": "커밋된 변경과 성공 응답. 재접속 후 같은 기록 조회",
+    "failure": "DB 실패는 업무 변경도 롤백. 파일 저장은 별도 연결/정리 절차. 브라우저 AppState를 영구 저장 원본으로 사용하지 않음.",
+    "basis": "NFR-005·009·011",
+    "usecase": "모든 저장 흐름·공통 화면 동작",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "040·038",
+    "sources": [
+      {
+        "label": "NFR-005·009·011",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "모든 저장 흐름·공통 화면 동작",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "RelationalDatabase",
+      "TransactionStore",
+      "RequestCommands",
+      "WorkItemCommands",
+      "AfterActionReportCommand",
+      "PersonnelService",
+      "NightDutyService",
+      "AccessManagementService",
+      "SituationService",
+      "DirectiveService",
+      "AttachmentService",
+      "ApiController"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-029": {
+    "t": "중복 제출과 응답 유실 재확인",
+    "x": "행동자와 제출 식별값을 묶어 같은 입력은 한 번만 실행한다. 응답이 유실되면 동일 식별값으로 결과를 다시 확인하고 현재 권한도 재검사한다.",
+    "input": "서버 행동자·operationId·입력 지문",
+    "output": "최초 성공 결과의 재전달 또는 처리 중/실패 안내",
+    "failure": "같은 키의 다른 입력·회수된 권한은 거절. 결과 불명을 저장 실패로 단정하고 새 등록을 만들지 않음.",
+    "basis": "NFR-007",
+    "usecase": "공통 화면 동작·UC-001~007·011",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "기술안: 성공 영수증은 중복 재실행 방지를 위해 업무 기록과 함께 보존. 동시 처리 중에는 202/PROCESSING·Retry-After 2초, 같은 제출로 재확인. 다른 입력의 동일 키는 거절한다.",
+    "previous": "041",
+    "sources": [
+      {
+        "label": "NFR-007",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "공통 화면 동작·UC-001~007·011",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "RelationalDatabase",
+      "TransactionStore",
+      "RequestCommands",
+      "WorkItemCommands",
+      "AfterActionReportCommand",
+      "PersonnelService",
+      "NightDutyService",
+      "DirectiveService",
+      "ApiController",
+      "ApiClient"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-030": {
+    "t": "동시 수정과 오래된 화면 거절",
+    "x": "요청 변경은 요청 버전, 작업 변경·재배정은 해당 작업 버전을 비교한다. 같은 요청의 저장을 짧게 직렬화하고 최신 작업들로 전체 상태를 계산한다.",
+    "input": "주 대상 expectedRevision·현재 버전·같은 요청의 최신 작업",
+    "output": "유효한 독립 작업은 모두 저장. 같은 대상 충돌은 최신 재조회 안내",
+    "failure": "조용한 덮어쓰기·취소 되살림·반환 정정과 재배정 이중 성공 금지. 다른 반 버전을 화면에 추가 요구하지 않음.",
+    "basis": "NFR-008·009",
+    "usecase": "공통 화면 동작·UC-003~007",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "기술안: MySQL InnoDB 트랜잭션에서 요청→주 대상 작업 순으로 행 잠금, 잠금 후 버전/현재 권한 재검사. 잠금 대기 5초, 교착 상태는 내부 최대 2회 재시도 후 결과 불명/일시 실패를 구별한다.",
+    "previous": "042",
+    "sources": [
+      {
+        "label": "NFR-008·009",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "공통 화면 동작·UC-003~007",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "RelationalDatabase",
+      "TransactionStore",
+      "RequestCommands",
+      "WorkItemCommands",
+      "PersonnelService",
+      "NightDutyService",
+      "AccessManagementService",
+      "DirectiveService",
+      "ApiController",
+      "ApiClient",
+      "WorkExecutionPanel"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-031": {
+    "t": "공개 요청·작업 번호",
+    "x": "요청은 101 형식, 작업은 101-1 형식의 짧고 불변인 번호를 서버가 부여한다. 내부 식별값은 저장 내부에서만 사용한다.",
+    "input": "서버 번호 할당·요청과 작업 관계",
+    "output": "동시 생성에도 고유한 공개 번호, 재시도 때 같은 번호",
+    "failure": "최대값+1을 여러 요청이 그대로 경쟁 사용하지 않음. 번호에 빈칸이 없어야 한다는 새 요구는 만들지 않음.",
+    "basis": "FR-007·026",
+    "usecase": "UC-001·002·005·008·009·011",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "011·016·025·026",
+    "sources": [
+      {
+        "label": "FR-007·026",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "UC-001·002·005·008·009·011",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "RelationalDatabase",
+      "TransactionStore",
+      "RequestCommands",
+      "AfterActionReportCommand",
+      "RequestQueryService",
+      "HistoryAndNotificationQueryService",
+      "ApiController",
+      "RequestRegistrationForm",
+      "AfterActionReportForm",
+      "RequestListAndSearch"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-032": {
+    "t": "조회·저장·충돌·만료 화면 상태",
+    "x": "조회 중·빈 결과·실패를 구분하고 명시적 저장 성공 뒤 목록을 갱신한다. 오류 시 입력을 유지하며 충돌은 최신 값을 보고 다시 선택하게 한다. PC에서 그룹/개별 오류를 해당 항목과 첫 초점에 연결한다. 성공은 대상·처리를 명시하고 재편집을 미저장으로 구별한다. 지난 조회 결과의 실제 조건·성공 시각을 새 실패와 구별한다.",
+    "input": "조회/저장 응답·필드 오류·인증 만료·충돌·결과 불명",
+    "output": "입력 오류 위치·첫 오류 초점·재확인·재인증·재조회 안내·대상/처리별 성공·미저장 상태·성공 조회 조건/시각",
+    "failure": "성공 전 완료 표시·조회 실패의 0건 표시·자동 입력 덮어쓰기 금지.",
+    "basis": "FR-008·NFR-005·006",
+    "usecase": "공통 화면 동작",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "화면안: 미저장 이동 안내. 만료 시 현재 화면 메모리 입력만 유지하고 저장하지 않음. 같은 브라우저 재인증 후 제출 결과·권한 확인, 명시적 재제출. 파일은 유효 임시 참조만 복원, 브라우저 영구 저장 없음.",
+    "previous": "012·033·034·039",
+    "sources": [
+      {
+        "label": "FR-008·NFR-005·006",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "공통 화면 동작",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "ApiController",
+      "ApiClient",
+      "RequestRegistrationForm",
+      "RequestDetailWorkspace",
+      "WorkExecutionPanel",
+      "AfterActionReportForm",
+      "RequestListAndSearch",
+      "TeamScheduleView",
+      "BnocOverviewView",
+      "NotificationInbox",
+      "HistoryPanel",
+      "OperationsView",
+      "AccessManagementView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-033": {
+    "t": "검토·시연의 인물 표시 원칙",
+    "x": "설계와 시연에 가짜 이름·합성 계급·실제 개인정보·실제 부대 운영 수치를 채우지 않는다. 역할명과 빈 입력/등록 없음으로 구조를 검토한다. 외부 연동 시험용 상황 값은 문서·서버 설정·검증 기록에 모의 출처를 명시해 수집 시연에 사용한다. 실제 부대 상황이나 실제 SSO 연동으로 주장하지 않는다. 사용자 화면에 모의/대회용 표시·실제 연동 여부 설명을 넣지 않는다.",
+    "input": "역할명·빈 상태·사전 정의한 모의 상황 응답, 운영 시 승인된 표시 속성",
+    "output": "역할명으로 표시한 화면, GPS 정보원·CPCON 정보원 표시와 기준시각·수집 상태. 내부 sourceMode·문서·설정·검증 기록에 실제 구현 구분 보존",
+    "failure": "옛 합성 계정·자료를 새 기본값으로 복사하지 않음. 가짜 이름·합성 계급·시험 단계 A/B 같은 임시 용어 금지. 인물처럼 꾸민 기술 시험 식별자·실무 자료를 코드·로그·증거로 복제하지 않음.",
+    "basis": "사용자 표시 원칙·NFR-004·공고 자료 조건·대회 모의 연동 사용자 결정",
+    "usecase": "로그인 §1·병력 §9.2",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "",
+    "previous": "001·002·006·038",
+    "sources": [
+      {
+        "label": "사용자 표시 원칙·NFR-004·공고 자료 조건·대회 모의 연동 사용자 결정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "로그인 §1·병력 §9.2",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "DemoIdentityProvider",
+      "DemoSituationFeed",
+      "RequestRegistrationForm",
+      "HistoryPanel",
+      "OperationsView"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-034": {
+    "t": "프런트엔드와 서버의 API 경계",
+    "x": "화면은 입력·표시와 호출만 담당하고 서버의 권한·업무 규칙·저장을 우회할 수 없다. 대회용 모의 인증·상황 제공 모듈을 별도 모의 서버에 두고 실행 설정으로 실제 연동 경계와 구별한다. 같은 BNOC 서버의 세션·수집·저장·API를 사용하며 제공자를 화면 요청으로 바꾸지 않는다. 공개 시연은 기존 8081 제품·8083 검증 환경과 다른 빈 대회용 DB·비공개 첨부 경로·별도 모의 제공자로 실행한다.",
+    "input": "서버 시작 시 고정하는 대회/운영 모드·제공자 구성, 화면의 허용 명령/조회, 공개 HTTPS Origin·독립 DB/첨부/모의 제공자 설정",
+    "output": "공개 번호·허용된 화면 데이터·출처·오류. 서버 엔티티 전체나 인증 비밀값 제외",
+    "failure": "브라우저의 DB·상황 정보원 직접 접근과 역할 위조 금지. 대회 설정이 없는 실행에서 모의 제공자를 허용하지 않는다. 실제 연결 실패를 모의 성공으로 숨기지 않음.",
+    "basis": "백엔드 전환 사용자 요청·NFR-003~009·대회 모의 연동 사용자 결정",
+    "usecase": "공통 화면 동작·로그인 §1",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "기술안: Java 17·Spring Boot MVC 4.1.1·Kotlin 2.3.20·Gradle 9.3.0·MySQL 8.4 LTS, 단일 업무 JAR·별도 모의 서버·비공개 파일. 로컬 시연 8081. 실제 SSO/GPS/CPCON 규격과 공개 백엔드 호스팅 호환은 후속 검증 조건. 임시 HTTPS 접속은 컴퓨터·시연 서버·터널이 실행되는 동안만 제공한다. 상시 JVM 호스팅은 별도 확보·검증 조건이며 임시 시연을 상시 배포 완료로 표현하지 않는다.",
+    "previous": "036·040·041·042",
+    "sources": [
+      {
+        "label": "백엔드 전환 사용자 요청·NFR-003~009·대회 모의 연동 사용자 결정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "공통 화면 동작·로그인 §1",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "AirForceSSO",
+      "ExternalSituationFeed",
+      "ExternalCpconFeed",
+      "DemoIdentityProvider",
+      "DemoSituationFeed",
+      "RelationalDatabase",
+      "FileObjectStore",
+      "SessionManager",
+      "SituationService",
+      "AttachmentService",
+      "ApiController",
+      "ApiClient"
+    ],
+    "check": "설계 검토: 근거·주체·입력·결과·금지 사례와 담당 모듈을 대조. 해당 API 정상/거절·저장 결과는 제품 검증 기록으로 확인."
+  },
+  "SR-BE-035": {
+    "t": "CPCON 상황 수집·저장·조회",
+    "x": "CPCON은 GPS와 별도 수집·저장하며 모든 로그인 사용자가 조회한다. 공개 근거 기반 1~5 코드를 별도 사전에서 검증하고 CPCONⅠ급~Ⅴ급으로 표시한다. 한국 공군의 전체 태세명·의미를 확인한 것으로 주장하지 않는다.",
+    "input": "종류 cpcon, 정보원의 scopeKey, 별도 1~5 단계 코드·원본 기준시각·모의 출처. 실제 부대명·시험 단계 A/B를 만들지 않는다.",
+    "output": "CPCONⅠ급~Ⅴ급·정보원 적용 범위·원본/성공/시도 시각·CPCON 정보원 표시·미수집/성공/실패/오래됨. 단계 사전 미설정은 명시적 미설정 상태",
+    "failure": "GPS 5=양호·부대 공통 범위를 CPCON에 복사하지 않는다. 별도 사전 밖 코드·오류를 정상화하지 않고 GPS 성공으로 CPCON 실패를 덮지 않는다. 임시 단계명·임의 한국어 태세명·실제 부대 범위 추정 금지.",
+    "basis": "공고 R02·CPCON 누락 정정·전체 로그인 조회 결정",
+    "usecase": "상황 §9.4",
+    "status": "업무 결정 반영 · 승인된 구현 명세",
+    "pending": "공개 근거 기반 기술안과 사용자 조회 권한 확정. 범위는 정보원 scopeKey별 독립 저장·조회. 수집 30초/시간 초과 5초/유효 120초는 GPS와 별도 설정. 국내 실제 단계 의미·연동 규격·인증은 후속 실연동 조건.",
+    "previous": "",
+    "sources": [
+      {
+        "label": "공고 R02·CPCON 누락 정정·전체 로그인 조회 결정",
+        "href": "요구사항.md#current-requirements"
+      },
+      {
+        "label": "상황 §9.4",
+        "href": "유스케이스.md#current-usecases"
+      }
+    ],
+    "owners": [
+      "ExternalCpconFeed",
+      "DemoSituationFeed",
+      "TransactionStore",
+      "AccessPolicy",
+      "SituationService",
+      "ApiController",
+      "OperationsView"
+    ],
+    "check": "설계 검토에서 GPS와 별도 기능·모듈·입출력을 확인한다. 독립 성공/실패·미설정·잘못된 코드·저장값 조회는 제품 검증 기록으로 확인한다. 실제 연동 성공 증거로 사용하지 않는다."
+  }
+};
+const LAYERS = {
+  "bootstrap": {
+    "label": "연결·API",
+    "tag": "연결"
+  },
+  "session": {
+    "label": "인증·권한",
+    "tag": "권한"
+  },
+  "workflow": {
+    "label": "업무 처리",
+    "tag": "업무"
+  },
+  "query": {
+    "label": "조회",
+    "tag": "조회"
+  },
+  "store": {
+    "label": "저장",
+    "tag": "저장"
+  },
+  "screen": {
+    "label": "화면",
+    "tag": "화면"
+  }
+};
+const DOMAINS = {
+  "external": {
+    "label": "외부 연동",
+    "description": "실제 연동 경계 · 대회용 모의 인증/상황 정보원"
+  },
+  "storage": {
+    "label": "영구 저장소",
+    "description": "업무 DB · 비공개 파일"
+  },
+  "backend": {
+    "label": "백엔드 서버",
+    "description": "인증 · 권한 · 업무 규칙 · 조회 · 저장"
+  },
+  "frontend": {
+    "label": "프런트엔드",
+    "description": "화면 · 임시 입력 · HTTPS API 호출"
+  }
+};
+const CLASSES = [
+  {
+    "id": "AirForceSSO",
+    "kr": "공군 SSO · 실제 연동 경계",
+    "domain": "external",
+    "layer": "session",
+    "level": 0,
+    "resp": "외부 인증 시스템. 검증 가능한 신원을 제공하며 서비스 내 업무 권한과 전체 부대 명부까지 제공한다고 가정하지 않는다. 대회에는 연결하지 않으며 모의 인증 제공자를 사용한다. 실제 규격 확보 후 연결 부분을 구현·검증한다.",
+    "input": "인증 연동 요청(규격 미정)",
+    "output": "서버가 검증할 인증 결과",
+    "failure": "연동 실패·위조·만료는 서버가 거절한다.",
+    "pending": "실제 프로토콜·검증 키·로그아웃; 대회용 계약과 별도",
+    "methods": [
+      {
+        "sig": "authenticate(connection): IdentityProof",
+        "plain": "외부 신원 확인",
+        "note": "연결 규격 미정. 실제 로그인 화면을 여기서 구현하지 않음"
+      }
+    ],
+    "srs": [
+      "SR-BE-001",
+      "SR-BE-034"
+    ],
+    "depends": []
+  },
+  {
+    "id": "ExternalSituationFeed",
+    "kr": "GPS 정보원 · 실제 연동 경계",
+    "domain": "external",
+    "layer": "bootstrap",
+    "level": 0,
+    "resp": "부대 공통 GPS 단계를 제공하는 외부 시스템 경계. 새로 답한 자동 수집 요구를 연결한다. 대회에는 실제 연결 없이 모의 정보원을 사용한다.",
+    "input": "정해질 인증·조회 요청",
+    "output": "외부 단계·원본 기준시각",
+    "failure": "연결/값 오류는 정상 단계가 아니다.",
+    "pending": "정보 제공 시스템·연동 규격",
+    "methods": [
+      {
+        "sig": "fetch(connection): ExternalGpsSnapshot",
+        "plain": "외부 GPS 정보 조회",
+        "note": "실제 URL·인증·원본 값 규격 미확정"
+      }
+    ],
+    "srs": [
+      "SR-BE-026",
+      "SR-BE-034"
+    ],
+    "depends": []
+  },
+  {
+    "id": "ExternalCpconFeed",
+    "kr": "CPCON 정보원 · 실제 연동 경계",
+    "domain": "external",
+    "layer": "bootstrap",
+    "level": 0,
+    "resp": "향후 CPCON 실제 정보원을 연결할 경계. 대회에는 연결하지 않으며 공군에서 실제 제공하는 API가 확인됐다는 뜻이 아니다.",
+    "input": "후속 확정할 인증·조회·적용 범위",
+    "output": "CPCON 원본 코드·표시명·기준시각·적용 범위",
+    "failure": "GPS 응답으로 대체하거나 같은 단계 사전을 사용하지 않는다.",
+    "pending": "실제 정보원·규격·단계 사전·범위",
+    "methods": [
+      {
+        "sig": "fetch(connection): ExternalCpconSnapshot",
+        "plain": "실제 CPCON 정보 조회",
+        "note": "실연동 규격 확보 후 구현·호환 검증"
+      }
+    ],
+    "srs": [
+      "SR-BE-035",
+      "SR-BE-034"
+    ],
+    "depends": []
+  },
+  {
+    "id": "DemoIdentityProvider",
+    "kr": "대회용 모의 인증 제공자",
+    "domain": "external",
+    "layer": "bootstrap",
+    "level": 0,
+    "resp": "대회용 모의 서버의 인증 모듈. 시연 로그인에서 사전 등록된 시험 신원을 선택해 로그인 요청에 묶인 짧은 수명의 단회 확인표를 발급한다. BNOC 서버가 확인표를 검증/소비한 뒤 신원만 반환한다. 서비스 권한은 BNOC 서버가 별도로 결정한다. 브라우저 인증 HTML은 BNOC의 /identity를 경유하며 확인표 검증은 서버의 loopback 연결로 받는다.",
+    "input": "시연 신원 선택·서버가 만든 로그인 요청 식별값; BNOC 서버의 확인표 검증 요청",
+    "output": "모의 출처가 있는 확인표 또는 검증된 시험 식별자·만료/거절 결과",
+    "failure": "위조·만료·재사용·다른 로그인 요청 확인표 거절. 가짜 이름·계급·회원가입 없음. 업무 역할을 클라이언트 값으로 확정하지 않음.",
+    "pending": "대회 기술값: 확인표 60초·로그인 요청 5분. 역할명으로 표시하고 서비스 권한은 BNOC 서버 매핑에서 결정.",
+    "methods": [
+      {
+        "sig": "issue(identity, loginAttempt): DemoTicket",
+        "plain": "시연 신원에 연결된 확인표 발급",
+        "note": "대회 모드에서만 제공; 역할명으로 표시"
+      },
+      {
+        "sig": "verifyAndConsume(ticket, loginAttempt): VerifiedIdentity",
+        "plain": "서버의 확인표 검증·단회 소비",
+        "note": "일치·만료·재사용 검사; 역할 부여는 BNOC 서버 책임"
+      }
+    ],
+    "srs": [
+      "SR-BE-001",
+      "SR-BE-003",
+      "SR-BE-033",
+      "SR-BE-034"
+    ],
+    "depends": []
+  },
+  {
+    "id": "DemoSituationFeed",
+    "kr": "대회용 모의 GPS·CPCON 정보원",
+    "domain": "external",
+    "layer": "bootstrap",
+    "level": 0,
+    "resp": "대회용 모의 서버의 상황 제공 모듈. 시연 운영자가 로컬 제어에서 종류별 시나리오를 선택하면 BNOC 수집 요청에 정해진 시험 응답을 제공한다. BNOC 업무 DB·화면 값을 직접 바꾸지 않는다.",
+    "input": "서버의 gps/cpcon 조회; 로컬 시연 제어의 종류별 시나리오 선택",
+    "output": "모의 출처·종류·범위·단계·원본 시각 또는 의도한 누락/오류/지연 응답",
+    "failure": "GPS와 CPCON을 독립 제어. CPCON 단계 사전 미설정은 미설정 응답이며 GPS 규칙을 빌리지 않는다. 운영 업무 화면에 단계 수정 기능을 추가하지 않는다.",
+    "pending": "공개 근거 기반 별도 CPCON 1~5 코드·Ⅰ~Ⅴ급 표기와 정보원 scopeKey 사용. 수집 30초·시간 초과 5초·유효 120초는 종류별 독립 설정. 임시 단계명 없음.",
+    "methods": [
+      {
+        "sig": "fetch(kind): DemoSituationSnapshot",
+        "plain": "종류별 모의 응답 제공",
+        "note": "GPS는 1~5; CPCON은 별도 사전"
+      },
+      {
+        "sig": "selectScenario(kind, scenario): Result",
+        "plain": "로컬 시연 제어에서 정상·변경·실패·지연 선택",
+        "note": "운영 업무 API로 노출하지 않음; 오래됨·누락·범위 밖 응답도 검사 가능"
+      }
+    ],
+    "srs": [
+      "SR-BE-026",
+      "SR-BE-035",
+      "SR-BE-033",
+      "SR-BE-034"
+    ],
+    "depends": []
+  },
+  {
+    "id": "RelationalDatabase",
+    "kr": "업무 데이터베이스",
+    "domain": "storage",
+    "layer": "store",
+    "level": 0,
+    "resp": "요청·작업·권한·운영 현황·이력·알림·처리 영수증을 영구 보존한다. 브라우저는 직접 연결하지 않는다.",
+    "input": "서버의 트랜잭션·조회·조건부 갱신",
+    "output": "저장된 기록·커밋/롤백 결과",
+    "failure": "고유 번호·참조 관계·주 대상 버전 검사. 대회 DB 기술안은 MySQL 8.4 LTS·InnoDB이며 실제 SQL 작성/검증은 구현 승인 후 대상.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "transaction(changes): CommitResult",
+        "plain": "업무 변경 함께 저장",
+        "note": ""
+      },
+      {
+        "sig": "select(scope, filter): Records",
+        "plain": "허용된 서버 조회에 기록 반환",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-019",
+      "SR-BE-028",
+      "SR-BE-029",
+      "SR-BE-030",
+      "SR-BE-031",
+      "SR-BE-034"
+    ],
+    "depends": []
+  },
+  {
+    "id": "FileObjectStore",
+    "kr": "비공개 파일 저장소",
+    "domain": "storage",
+    "layer": "store",
+    "level": 0,
+    "resp": "첨부파일 내용을 보관한다. 임시 업로드와 요청에 연결된 파일을 구별하고 외부 공개 URL로 열지 않는다.",
+    "input": "서버가 허용한 파일 내용·불투명한 저장 참조",
+    "output": "파일 존재·내용·쓰기/삭제 결과",
+    "failure": "DB의 요청 연결과 별도 실패 경계. 임시 파일 정리 규칙 필요.",
+    "pending": "제품·보존/정리·악성 파일 검사 정책",
+    "methods": [
+      {
+        "sig": "put(file): StorageReference",
+        "plain": "파일 내용 저장",
+        "note": ""
+      },
+      {
+        "sig": "get(reference): FileStream",
+        "plain": "서버에 파일 전달",
+        "note": ""
+      },
+      {
+        "sig": "removeUnlinked(reference): Result",
+        "plain": "허용된 미연결 임시 파일 정리",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-006",
+      "SR-BE-034",
+      "SR-BE-027"
+    ],
+    "depends": []
+  },
+  {
+    "id": "TransactionStore",
+    "kr": "트랜잭션·영구 저장",
+    "domain": "backend",
+    "layer": "store",
+    "level": 1,
+    "resp": "메모리 전체 상태 교체를 DB의 원자적 저장으로 옮긴다. 같은 요청의 경합·중복 제출·번호 고유성을 처리하며 전체 AppState는 화면으로 보내지 않는다.",
+    "input": "검증된 명령 컨텍스트·제출 키·주 대상 버전·변경 집합; 종류·범위별 상황 스냅샷·수집 시도",
+    "output": "함께 저장된 업무·이력·알림·영수증 또는 충돌/실패",
+    "failure": "권한 재검사 뒤 재전달. 커밋 여부 불명은 성공/롤백으로 단정하지 않는다. 상황의 마지막 성공 값과 실패한 시도 결과를 구별하며 종류 간 덮어쓰기를 금지한다.",
+    "pending": "성공 영수증은 업무 기록과 함께 보존한다. 요청→주 대상 작업 순서로 잠그며 잠금 대기는 5초, 교착 시 내부 최대 2회 재시도한다. 처리 중 응답은 202/PROCESSING·Retry-After 2초다. 상세는 개발명세서 기술 설계값을 따른다.",
+    "methods": [
+      {
+        "sig": "run(actor, operationId, fingerprint, targetRevision, handler): CommandResult",
+        "plain": "대상 잠금·중복 확인·업무 결과 함께 저장",
+        "note": ""
+      },
+      {
+        "sig": "read(scope, criteria): Records",
+        "plain": "저장된 기록 조회",
+        "note": ""
+      },
+      {
+        "sig": "nextPublicNumber(request?): PublicNumber",
+        "plain": "공개 번호 원자적 발급",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-002",
+      "SR-BE-004",
+      "SR-BE-006",
+      "SR-BE-007",
+      "SR-BE-008",
+      "SR-BE-009",
+      "SR-BE-010",
+      "SR-BE-011",
+      "SR-BE-012",
+      "SR-BE-013",
+      "SR-BE-014",
+      "SR-BE-016",
+      "SR-BE-019",
+      "SR-BE-020",
+      "SR-BE-024",
+      "SR-BE-025",
+      "SR-BE-026",
+      "SR-BE-027",
+      "SR-BE-028",
+      "SR-BE-029",
+      "SR-BE-030",
+      "SR-BE-031",
+      "SR-BE-035"
+    ],
+    "depends": [
+      "RelationalDatabase"
+    ]
+  },
+  {
+    "id": "SessionManager",
+    "kr": "SSO 검증·서버 세션",
+    "domain": "backend",
+    "layer": "session",
+    "level": 1,
+    "resp": "실행 설정의 제공자로부터 인증 결과를 검증하고 시험/운영 신원을 서버의 서비스 권한에 매핑한다. 대회에도 같은 서버 세션을 생성하고 매 요청 권한을 확인한다. 시작 브라우저의 서버 사전 인증 상태·로그인 요청과 인증 결과를 연결하며 브라우저의 역할 선택값은 권한 근거가 아니다. 공개 시연에서는 브라우저 로그인 위치를 BNOC 공개 Origin의 /identity로 안내하고, 서버의 확인표 검증은 loopback 모의 제공자 주소를 사용한다.",
+    "input": "시작 브라우저의 서버 사전 인증 상태·로그인 요청·인증 확인표 또는 세션 참조, 서버의 대회/운영 제공자 설정, 공개 HTTPS Origin·loopback 제공자 주소·공개 인증 조회 조건/폼",
+    "output": "서버가 확인한 사용자·역할·부서·작업반 권한, 공개 로그인 위치·모의 인증 HTML",
+    "failure": "미인증·위조·만료·재사용·요청 불일치·시작 브라우저 불일치는 거절한다. 로그인 요청은 시작 브라우저의 서버 사전 인증 상태에 묶고 인증 완료 시 함께 소비한다. 운영 모드에서는 모의 인증을 거절하며 실제 연동 실패 시 모의 인증으로 자동 전환하지 않는다. 브라우저의 역할 값으로 권한을 만들지 않는다.",
+    "pending": "기술값: 세션 유휴 30분·절대 8시간, 로그인 요청 5분·단회 확인표 60초. 시험 신원/권한 매핑은 서버 저장. 실제 공군 SSO 규격·로그아웃·검증은 후속 조건.",
+    "methods": [
+      {
+        "sig": "beginLogin(preAuthSession): LoginChallenge",
+        "plain": "서버 로그인 요청 생성·제공자 로그인 이동 안내",
+        "note": "현재 브라우저의 서버 사전 인증 상태에 요청 식별값·만료·허용된 복귀 경로 결합; 업무 권한은 아직 없음"
+      },
+      {
+        "sig": "establish(proof, loginAttempt, preAuthSession): ServerSession",
+        "plain": "선택된 제공자 검증 후 서버 세션 시작",
+        "note": "모의/실제 출처·시작 브라우저의 사전 인증 상태·로그인 요청 일치 검사 후 단회 소비; 권한은 서버 저장소에서 조회"
+      },
+      {
+        "sig": "resolve(session): ActorContext",
+        "plain": "현재 권한을 다시 읽어 행동자 결정",
+        "note": ""
+      },
+      {
+        "sig": "end(session): Result",
+        "plain": "서비스 세션 종료",
+        "note": ""
+      },
+      {
+        "sig": "proxyIdentity(request): IdentityPageResponse",
+        "plain": "GET/POST /identity 모의 인증 화면 중계",
+        "note": "고정된 loopback 제공자의 정확한 /identity만 호출하며 임의 경로·URL·비밀값을 브라우저 입력으로 받지 않는다. 요청 Cookie·X-Mock-Key는 중계하지 않고 필요한 인증 HTML·보안 헤더만 반환한다."
+      }
+    ],
+    "srs": [
+      "SR-BE-001",
+      "SR-BE-002",
+      "SR-BE-003",
+      "SR-BE-034"
+    ],
+    "depends": [
+      "AirForceSSO",
+      "TransactionStore",
+      "DemoIdentityProvider"
+    ]
+  },
+  {
+    "id": "AccessPolicy",
+    "kr": "서버 권한 판정",
+    "domain": "backend",
+    "layer": "session",
+    "level": 1,
+    "resp": "상세·공유 조회와 수정 권한을 분리한다. 입력된 역할 대신 서버의 현재 컨텍스트와 대상 소유·소속을 검사한다.",
+    "input": "현재 ActorContext·행동·대상 소유/부서/반",
+    "output": "허용/거절, 응답에 포함할 필드 범위",
+    "failure": "공유 목록 조회가 상세·타 부서 수정 권한으로 확대되지 않는다.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "canPerform(context, action, target): Decision",
+        "plain": "명령·조회 권한 확인",
+        "note": ""
+      },
+      {
+        "sig": "visibleFields(context, target): FieldSet",
+        "plain": "역할별 응답 항목 결정",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-002",
+      "SR-BE-003",
+      "SR-BE-006",
+      "SR-BE-007",
+      "SR-BE-008",
+      "SR-BE-010",
+      "SR-BE-011",
+      "SR-BE-012",
+      "SR-BE-014",
+      "SR-BE-016",
+      "SR-BE-017",
+      "SR-BE-019",
+      "SR-BE-020",
+      "SR-BE-021",
+      "SR-BE-022",
+      "SR-BE-023",
+      "SR-BE-024",
+      "SR-BE-025",
+      "SR-BE-026",
+      "SR-BE-027",
+      "SR-BE-035"
+    ],
+    "depends": []
+  },
+  {
+    "id": "RequestStatusCalculator",
+    "kr": "요청 전체 상태 계산",
+    "domain": "backend",
+    "layer": "workflow",
+    "level": 1,
+    "resp": "각 반의 독립 작업에서 요청 전체 상태를 계산한다. 취소 우선·미해결 반환·대체 관계를 유지한다.",
+    "input": "요청·최신 유효 작업·반환 대체 관계",
+    "output": "요청 상태와 변화 여부",
+    "failure": "부분 완료·반환을 전체 완료로 계산하지 않는다.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "calculate(request, works): RequestStatus",
+        "plain": "기존 우선순위로 상태 계산",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-012",
+      "SR-BE-013",
+      "SR-BE-014",
+      "SR-BE-015"
+    ],
+    "depends": []
+  },
+  {
+    "id": "NotificationRules",
+    "kr": "내부 알림 대상 계산",
+    "domain": "backend",
+    "layer": "workflow",
+    "level": 1,
+    "resp": "기존 사건과 실제 계정 연결로 알림 대상을 계산한다. 외부 메시지나 지시 확인을 추가하지 않는다.",
+    "input": "명령·전후 상태·계정 연결·작업반",
+    "output": "새로 저장할 내부 알림",
+    "failure": "텍스트 요청자 계정 추정·재시도 중복·원본 개인정보 유출 금지.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "derive(event, before, after): Notifications",
+        "plain": "사건별 수신자와 공개 번호 결정",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-004",
+      "SR-BE-008",
+      "SR-BE-009",
+      "SR-BE-010",
+      "SR-BE-012",
+      "SR-BE-013",
+      "SR-BE-014",
+      "SR-BE-016",
+      "SR-BE-020"
+    ],
+    "depends": []
+  },
+  {
+    "id": "RequestCommands",
+    "kr": "신청·확인·배정 처리",
+    "domain": "backend",
+    "layer": "workflow",
+    "level": 2,
+    "resp": "신청·수정·취소·문서 대기·최초 배정·BNOC 분류 정정을 처리한다. 요청 내용 자체가 작업지시이며 배정 전 일반/긴급 필수, 배정 후에도 BNOC 정정 가능. 후보고 미분류도 BNOC가 사후 분류. 접수 시간은 서버가 기록한 배정 시각. 반장 지정·작업 일정 입력 없음.",
+    "input": "공개 요청 번호·요청 버전·허용 요청 입력 또는 작업반·명시적 일반/긴급. 권한·배정 시각은 서버가 확정.",
+    "output": "요청/작업·상태·배정 시각·이력·알림·공개 번호",
+    "failure": "미분류 배정·일정 자동 복사·권한 없는 변경·부분 저장 금지.",
+    "pending": "최신 업무 결정 반영 완료. 모든 유효 작업이 현재 배정이면 본인 비취소 요청 수정 가능. 분류 정정은 작업 상태/일정을 바꾸지 않으며 별도 전후 이력을 기록. 과거 배정 시각 정정 기능 없음.",
+    "methods": [
+      {
+        "sig": "createRequest(context, input): CommandResult",
+        "plain": "직접 신청 또는 대리 등록",
+        "note": ""
+      },
+      {
+        "sig": "updateRequest(context, requestNumber, revision, input): CommandResult",
+        "plain": "허용된 요청 내용 수정",
+        "note": ""
+      },
+      {
+        "sig": "cancelRequest(context, requestNumber, revision): CommandResult",
+        "plain": "본인 요청 취소",
+        "note": ""
+      },
+      {
+        "sig": "moveToDocumentWaiting(context, requestNumber, revision): CommandResult",
+        "plain": "배정 전 문서 대기",
+        "note": ""
+      },
+      {
+        "sig": "assignTeams(context, requestNumber, revision, teamIds, priority): CommandResult",
+        "plain": "BNOC 최초 배정",
+        "note": "접수=배정 시각, 서버 자동 기록. 반장·작업 일정 필드 없음"
+      },
+      {
+        "sig": "changePriority(context, requestNumber, revision, priority): CommandResult",
+        "plain": "BNOC가 배정 후 정정 또는 후보고 사후 분류",
+        "note": "general/urgent 명시·현재 BNOC 권한·요청 버전 검사, 분류 전후 이력. 작업 일정·상태·반장 변경 없음"
+      }
+    ],
+    "srs": [
+      "SR-BE-004",
+      "SR-BE-005",
+      "SR-BE-007",
+      "SR-BE-008",
+      "SR-BE-009",
+      "SR-BE-010",
+      "SR-BE-011",
+      "SR-BE-019",
+      "SR-BE-020",
+      "SR-BE-028",
+      "SR-BE-029",
+      "SR-BE-030",
+      "SR-BE-031"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore",
+      "RequestStatusCalculator",
+      "NotificationRules",
+      "AttachmentService"
+    ]
+  },
+  {
+    "id": "WorkItemCommands",
+    "kr": "작업·반환·재배정 처리",
+    "domain": "backend",
+    "layer": "workflow",
+    "level": 2,
+    "resp": "작업반이 자기 작업의 담당 인원·상태·일정·메모를 명시적으로 저장한다. 담당 인원은 자기 반 명부에서 선택하며 저장 행동자·완료 처리자와 별개다. BNOC 반환 재배정은 기존 분류를 유지하고 새 배정 시각을 서버 기록한다.",
+    "input": "작업 번호·작업 버전·선택 상태·일정·메모·반환 사유·선택 담당 인원 참조 목록 또는 재배정 반.",
+    "output": "작업 담당 인원·상태 변경·완료정보·반환 대체 관계·요청 상태·이력·알림.",
+    "failure": "타 반·취소·대체 반환·후보고 정정·사유 없는 반환·다른 반 인원/중복 참조 거절. 담당 인원 미선택을 이유로 시작/완료를 막지 않으며 반장 지정 없음.",
+    "pending": "최신 결정 반영 완료. 재배정 분류 유지, 새 작업의 담당 인원은 새 작업반이 선택. 이전 반환 작업/담당 인원/이력 보존.",
+    "methods": [
+      {
+        "sig": "updateWork(context, requestNumber, workNumber, revision, changes): CommandResult",
+        "plain": "자기 작업 담당 인원·상태·일정·메모 저장",
+        "note": "담당 인원은 자기 반 명부 검증·선택 입력; returnWork 반환 별칭, updateWorkDetails는 기존 일정/메모 범위"
+      },
+      {
+        "sig": "reassignReturnedWork(context, workNumber, revision, teamIds): CommandResult",
+        "plain": "BNOC가 반환을 다른 반으로 재배정",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-012",
+      "SR-BE-013",
+      "SR-BE-014",
+      "SR-BE-015",
+      "SR-BE-019",
+      "SR-BE-020",
+      "SR-BE-028",
+      "SR-BE-029",
+      "SR-BE-030"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore",
+      "RequestStatusCalculator",
+      "NotificationRules",
+      "PersonnelService"
+    ]
+  },
+  {
+    "id": "AfterActionReportCommand",
+    "kr": "완료 선조치 후보고",
+    "domain": "backend",
+    "layer": "workflow",
+    "level": 2,
+    "resp": "직접 받은 일이 완료됐을 때만 요청·자기 반 완료 작업을 미분류로 함께 기록한다. BNOC가 나중에 일반/긴급을 분류하며 별도 승인·미완료 등록/BNOC 전달·역할 전환은 없다.",
+    "input": "공통 입력·실제 요청자 텍스트·실제 작업 시각·완료 사실·사유",
+    "output": "미분류 완료 요청·완료 작업·이력·BNOC 알림. 미분류는 완료 사실을 되돌리지 않는다.",
+    "failure": "미완료·권한 없음·필수 입력 누락은 거절. 완료 객체 부분 생성 금지.",
+    "pending": "후보고 미분류 등록·BNOC 사후 분류 결정 완료. 미완료 입력은 거절하고 화면 입력 유지, 새 이관 기능 없음.",
+    "methods": [
+      {
+        "sig": "createAfterActionReport(context, input): CommandResult",
+        "plain": "완료 요청과 작업 동시 등록",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-005",
+      "SR-BE-011",
+      "SR-BE-016",
+      "SR-BE-019",
+      "SR-BE-020",
+      "SR-BE-028",
+      "SR-BE-029",
+      "SR-BE-031"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore",
+      "NotificationRules",
+      "AttachmentService"
+    ]
+  },
+  {
+    "id": "PersonnelService",
+    "kr": "일일 병력 현황 처리",
+    "domain": "backend",
+    "layer": "workflow",
+    "level": 2,
+    "resp": "각 부서 담당자가 자기 명부와 선택 날짜 인원별 휴가·출장·가용을 관리한다. 과거 입력·수정 허용. 모든 부서 상호 조회이며 정비 작업반 5개에 한정하지 않는다. 작업 담당 인원/야간 근무 참조의 부서·반 소속도 검증한다.",
+    "input": "서버 부서 쓰기 권한·자기 명부 등록/수정/비활성화 값·명부 버전 또는 선택 날짜·인원 참조·상태·현황 버전.",
+    "output": "허용 명부·자기 반 인원 참조 검증 결과·인원별 현황·입력 수/미입력 요약·변경 이력.",
+    "failure": "타 부서 수정·미입력 가용 처리·전체 명부 자동 추정 금지.",
+    "pending": "업무 결정 완료. 기술안: 기본 명부 비움·인원 참조/표시명과 부서 관계·날짜당 한 상태. 비활성화해도 과거 기록/참조 보존. 기존 과거 기록의 같은 부서 인원 참조를 현재 비활성화만으로 거절하지 않음. 가짜 인명·합성 계급·인물처럼 표시한 시험 식별자 금지.",
+    "methods": [
+      {
+        "sig": "listRoster(context, department): PersonnelRoster",
+        "plain": "허용 부서 명부 조회",
+        "note": "부서 상호 조회 권한, 담당 인원 선택은 자기 반 명부로 제한"
+      },
+      {
+        "sig": "saveRoster(context, revision, entries): CommandResult",
+        "plain": "자기 부서 명부 등록·수정·비활성화",
+        "note": "자기 부서 담당자·명부 버전 검사; 과거 참조 보존"
+      },
+      {
+        "sig": "validateMembers(context, departmentOrTeam, personRefs, existingRecord?): ValidMembers",
+        "plain": "담당 인원/야간 근무 참조 검증",
+        "note": "신규 선택은 자기 부서/반 활성 명부·중복 검사, 기존/과거 기록의 같은 부서 참조는 보존하여 유지/정정 허용"
+      },
+      {
+        "sig": "readDaily(context, date, department?): PersonnelView",
+        "plain": "부서별/인원별 현황 조회",
+        "note": ""
+      },
+      {
+        "sig": "saveDaily(context, date, revision, entries): CommandResult",
+        "plain": "자기 부서 현황 저장",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-012",
+      "SR-BE-019",
+      "SR-BE-024",
+      "SR-BE-025",
+      "SR-BE-028",
+      "SR-BE-029",
+      "SR-BE-030"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore"
+    ]
+  },
+  {
+    "id": "NightDutyService",
+    "kr": "야간 근무 현황 처리",
+    "domain": "backend",
+    "layer": "workflow",
+    "level": 2,
+    "resp": "각 부서 담당자가 자기 명부 근무자를 공통 양식으로 저장하고 부서 상호 조회한다. 기준일은 근무 시작일이며 과거 입력·수정 허용. 근무 없는 부서에 빈 보고를 요구하지 않는다.",
+    "input": "근무 시작 날짜·자기 부서 근무자 참조 목록·현황 버전·서버 부서 쓰기 권한.",
+    "output": "등록된 근무자·이력 또는 등록된 정보 없음",
+    "failure": "타 부서 수정·자동 편성·미입력의 근무 없음 확정 금지.",
+    "pending": "업무 결정 완료. 공통 기본 입력은 날짜·근무자 선택; 시작/종료 시각·근무 구분 필수화/자동 편성 없음.",
+    "methods": [
+      {
+        "sig": "readNight(context, date, department?): NightDutyView",
+        "plain": "등록된 야간 근무 조회",
+        "note": ""
+      },
+      {
+        "sig": "saveNight(context, date, revision, entries): CommandResult",
+        "plain": "자기 부서 공통 양식 저장",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-019",
+      "SR-BE-025",
+      "SR-BE-028",
+      "SR-BE-029",
+      "SR-BE-030"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore",
+      "PersonnelService"
+    ]
+  },
+  {
+    "id": "AccessManagementService",
+    "kr": "서비스 권한 관리",
+    "domain": "backend",
+    "layer": "session",
+    "level": 2,
+    "resp": "권한 관리자가 역할·작업반·자기 부서 담당자 쓰기 권한을 부여·회수한다. 외부 SSO 계정 생성 없이 서비스 권한만 관리한다.",
+    "input": "관리자 컨텍스트·계정 참조·변경 권한·버전",
+    "output": "변경 권한·이력",
+    "failure": "자기 권한 상승·권한 관리자의 업무 내용 수정 금지.",
+    "pending": "기술안: 최초 관리자 외부 식별자를 서버 시작 설정으로 지정. 부서 담당자 권한은 자기 부서 범위로 부여. 실운영 복구·인수는 후속 고도화.",
+    "methods": [
+      {
+        "sig": "listAssignments(context): AccessAssignments",
+        "plain": "관리 가능한 권한 조회",
+        "note": ""
+      },
+      {
+        "sig": "changeAccess(context, accountRef, revision, changes): CommandResult",
+        "plain": "역할·작업반 권한 부여/회수",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-002",
+      "SR-BE-003",
+      "SR-BE-019",
+      "SR-BE-028",
+      "SR-BE-030"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore"
+    ]
+  },
+  {
+    "id": "RequestQueryService",
+    "kr": "신청 목록·상세 조회",
+    "domain": "backend",
+    "layer": "query",
+    "level": 3,
+    "resp": "본인/자기 반/BNOC 범위의 목록·상세를 조회하고 내부 식별값과 불필요한 정보를 제외한다.",
+    "input": "현재 사용자·적용 검색 조건·공개 요청 번호",
+    "output": "권한별 요약·상세·작업·편집 버전",
+    "failure": "공유 목록 조회 권한으로 상세를 열지 않는다.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "getRequestList(context, filter): RequestList",
+        "plain": "허용된 신청 목록 검색",
+        "note": ""
+      },
+      {
+        "sig": "getRequestDetail(context, requestNumber): RequestDetail",
+        "plain": "허용된 요청 상세 조회",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-017",
+      "SR-BE-018",
+      "SR-BE-031"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore"
+    ]
+  },
+  {
+    "id": "OpsQueryService",
+    "kr": "기존 현황·일정 조회",
+    "domain": "backend",
+    "layer": "query",
+    "level": 3,
+    "resp": "BNOC 요청 단위 현황과 권한별 정비 일·주·월 일정의 조회를 담당한다. 공유 작업 집계와 응답을 분리한다.",
+    "input": "기간·달력 단위·기존 조건·현재 권한",
+    "output": "요청 집계/목록 또는 일정 있음·미정 작업",
+    "failure": "BNOC 일정 수정·일반 요청자 전체 달력 조회를 추가하지 않음.",
+    "pending": "화면·기술안: BNOC 전체 정비 조회·작업반 자기 반 범위. Asia/Seoul·월요일 주 시작·조회 시작 포함/끝 제외. 기간 겹친 작업은 표시하되 작업 건수 중복 없음.",
+    "methods": [
+      {
+        "sig": "getBnocOverview(context, filter): RequestOverview",
+        "plain": "BNOC 전용 요청 단위 현황",
+        "note": ""
+      },
+      {
+        "sig": "getSchedule(context, range, unit): ScheduleView",
+        "plain": "일·주·월 및 일정 미정 조회",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-021",
+      "SR-BE-022"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore"
+    ]
+  },
+  {
+    "id": "SharedWorkQueryService",
+    "kr": "전체 공유 작업 집계",
+    "domain": "backend",
+    "layer": "query",
+    "level": 3,
+    "resp": "모든 로그인 사용자가 전체 작업 집계·목록을 보되 상세 권한은 유지한다. 장애 외 지원·대여·설치·이전을 포함한다.",
+    "input": "동일한 부서·유형·상태·분류 필터",
+    "output": "작업 건수·같은 조건의 공유 목록·총건수·기준시각",
+    "failure": "공유 필드 밖 본문·연락처·첨부·인원·메모 제외. 재고/장비 가용 추론 없음.",
+    "pending": "설계 0.6 승인안 유지: 유효 일반 배정 작업의 할당=완료+남은 작업. 취소/대체 반환 제외·반환 하위 건수·후보고/미배정 별도. 현재 상태 기준이며 기간별 처리 실적 기능 없음.",
+    "methods": [
+      {
+        "sig": "getWorkOverview(context, filter): SharedWorkOverview",
+        "plain": "할당·처리·남은 작업과 전체 목록 조회",
+        "note": "승인 산식·구조화된 공유 필드 적용, 전체 건수와 페이지 목록 같은 조건"
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-023"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore"
+    ]
+  },
+  {
+    "id": "HistoryAndNotificationQueryService",
+    "kr": "이력·내부 알림 조회",
+    "domain": "backend",
+    "layer": "query",
+    "level": 3,
+    "resp": "현재 수신자의 알림과 역할에 맞는 요청 이력을 반환한다. 지시 확인 기능을 포함하지 않는다.",
+    "input": "현재 사용자·공개 요청 번호·조회 조건",
+    "output": "허용 이력·알림·공개 번호",
+    "failure": "원본 전후 객체·SSO 참조·다른 수신자 알림 전체 공개 금지.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "getHistory(context, requestNumber): HistoryView",
+        "plain": "역할별 공개 처리 이력",
+        "note": ""
+      },
+      {
+        "sig": "getNotifications(context): Notifications",
+        "plain": "현재 수신자의 알림",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-019",
+      "SR-BE-020",
+      "SR-BE-031"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore"
+    ]
+  },
+  {
+    "id": "SituationService",
+    "kr": "GPS·CPCON 수집·조회",
+    "domain": "backend",
+    "layer": "query",
+    "level": 3,
+    "resp": "선택된 실제/모의 정보원에서 GPS와 CPCON을 각각 자동 수집·검증·저장한다. GPS만 부대 공통 1~5·5=양호다. 종류·범위별 단계 사전과 성공 스냅샷·시도 결과를 구분하고 모의 출처를 함께 반환한다.",
+    "input": "정보 종류·적용 범위·단계 코드·표시명·원본 시각·출처·수집 결과, 조회 사용자",
+    "output": "종류별 허용 단계·출처·원본/성공/시도 시각·수집 상태",
+    "failure": "GPS와 CPCON은 각각 성공/실패를 기록한다. 시도 전만 미수집이며 첫 시도 실패는 성공 값 없음·실패·마지막 시도로 표시한다. 오류가 다른 종류의 마지막 성공 값을 덮지 않는다. 미설정·실패·오래된 정보를 정상/양호로 만들지 않는다. 운영 모드의 실제 연결 실패를 모의 응답으로 대체하지 않는다.",
+    "pending": "공개 근거 기반 CPCON 1~5 코드·Ⅰ~Ⅴ급 표기·scopeKey 분리. GPS/CPCON 모두 로그인 조회. 수집 30초·시간 초과 5초·유효 120초 종류별 설정. 국내 실제 단계 의미·연동 규격은 후속 조건.",
+    "methods": [
+      {
+        "sig": "collectGps(): CollectionResult",
+        "plain": "선택된 GPS 정보원 수집·저장",
+        "note": "GPS 전용 검증·모의 출처 보존"
+      },
+      {
+        "sig": "collectCpcon(): CollectionResult",
+        "plain": "선택된 CPCON 정보원 수집·저장",
+        "note": "독립 단계 사전·범위·실패 기록"
+      },
+      {
+        "sig": "getSituation(context, kind): SituationView",
+        "plain": "종류별 저장 상태 조회",
+        "note": "조회 권한 재검사; 모의 출처·마지막 성공/시도 구분"
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-026",
+      "SR-BE-028",
+      "SR-BE-034",
+      "SR-BE-035"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore",
+      "ExternalSituationFeed",
+      "ExternalCpconFeed",
+      "DemoSituationFeed"
+    ]
+  },
+  {
+    "id": "DirectiveService",
+    "kr": "BNOC 공지게시판 처리",
+    "domain": "backend",
+    "layer": "workflow",
+    "level": 3,
+    "resp": "모든 로그인 사용자가 공지 목록·본문·첨부를 조회한다. BNOC가 글을 게시하고 BNOC 계정이면 작성자와 무관하게 제목·본문·첨부를 수정한다. 게시 종료·숨김·읽음 확인은 없다.",
+    "input": "서버 BNOC 권한·제목·본문·검증된 첨부 참조·제출 키, 수정 시 공지 참조·공지 버전. 조회 사용자 세션.",
+    "output": "게시/수정된 공지·첨부 연결·전후 이력 또는 로그인 사용자에게 허용된 목록/본문. 제거한 첨부는 현재 연결만 해제하고 과거 자료 보존.",
+    "failure": "BNOC 외 게시·첨부 소유/연결 오류·권한 밖 조회 거절. 게시물과 첨부 연결의 부분 성공 금지. 해당 공지의 기존 연결 첨부는 타 BNOC 업로드라도 유지 허용, 신규 임시 첨부만 현재 업로더 소유 검사.",
+    "pending": "사용자 결정 완료. 제목/본문·첨부 제한은 개발 명세 기술값, 오래된 공지 수정·타인 임시 파일 연결 거절.",
+    "methods": [
+      {
+        "sig": "listDirectives(context): NoticeList",
+        "plain": "공지 목록 조회",
+        "note": "모든 로그인 사용자 조회"
+      },
+      {
+        "sig": "getDirective(context, noticeRef): NoticeDetail",
+        "plain": "공지 본문·첨부 조회",
+        "note": "게시물 권한 검사"
+      },
+      {
+        "sig": "createDirective(context, title, body, attachmentRefs): CommandResult",
+        "plain": "BNOC 글·첨부 게시",
+        "note": "제목·본문·첨부를 함께 저장, 게시 종료 없음"
+      },
+      {
+        "sig": "updateDirective(context, noticeRef, revision, title, body, attachmentRefs): CommandResult",
+        "plain": "모든 BNOC 계정의 공지 수정",
+        "note": "작성자와 무관한 BNOC 권한·공지 버전·첨부 소유/연결 검사, 전후 이력"
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-019",
+      "SR-BE-027",
+      "SR-BE-028",
+      "SR-BE-029",
+      "SR-BE-030"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore",
+      "AttachmentService"
+    ]
+  },
+  {
+    "id": "AttachmentService",
+    "kr": "첨부 검증·요청 연결",
+    "domain": "backend",
+    "layer": "store",
+    "level": 3,
+    "resp": "정비 요청과 공지게시물의 첨부를 구별해 검증·연결한다. 다운로드는 해당 요청 또는 게시물의 조회 권한을 적용한다. 공개 저장 URL은 노출하지 않는다.",
+    "input": "대상 종류(request/notice)·파일·임시 참조·현재 사용자·연결 대상",
+    "output": "연결 가능한 첨부 참조·다운로드 스트림",
+    "failure": "요청 첨부는 기존 요청 권한, 공지 첨부 추가는 BNOC. 공지 다운로드는 해당 게시물 권한. 다른 종류/대상의 참조 우회 금지.",
+    "pending": "기술값: 허용 문서/이미지 목록·파일당 10MiB·대상당 10개/합계 50MiB, 미연결 임시 24시간·매시간 정리. 원래 파일명 경로 사용 금지, 첨부 제거 이력 보존.",
+    "methods": [
+      {
+        "sig": "upload(context, resourceKind, file): UploadResult",
+        "plain": "대상 종류별 임시 업로드·검사",
+        "note": "공지 업로드는 BNOC"
+      },
+      {
+        "sig": "validateLinks(context, resourceKind, target, refs): AttachmentLinks",
+        "plain": "대상 권한·신규 임시 파일 소유·기존 연결 검증",
+        "note": "요청/게시물 트랜잭션에 연결 포함; 해당 공지 기존 연결은 업로더와 무관하게 유지 가능"
+      },
+      {
+        "sig": "download(context, attachmentRef): FileStream",
+        "plain": "해당 요청/공지 권한 확인 후 다운로드",
+        "note": "연결 대상 종류는 저장값으로 판정. 정비 상세 권한을 공지 조회 권한으로 우회하지 않음"
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-006",
+      "SR-BE-028",
+      "SR-BE-034",
+      "SR-BE-027"
+    ],
+    "depends": [
+      "AccessPolicy",
+      "TransactionStore",
+      "FileObjectStore"
+    ]
+  },
+  {
+    "id": "ApiController",
+    "kr": "서버 API 진입점",
+    "domain": "backend",
+    "layer": "bootstrap",
+    "level": 4,
+    "resp": "브라우저 HTTPS 요청을 받는 유일한 서버 진입점이다. 인증·허용 필드·대상 참조를 확인하고 해당 서비스에 전달한다. 화면이 업무 서비스를 직접 호출하지 않는다. 로그인 시작/복귀는 세션 생성 전 인증 흐름으로 처리하고, 업무 API에는 검증된 세션을 요구한다. 공개 시연의 정확한 GET/POST /identity를 SessionManager에 전달해 모의 인증 HTML을 반환한다.",
+    "input": "명령 type·operationId·공개 번호·버전·허용 payload 또는 조회 조건·파일; 인증 시작/완료 요청과 서버가 확인한 사전 인증 상태; 공개 /identity 조회 조건/폼",
+    "output": "커밋 확인된 공개 결과·허용 DTO·오류. 엔티티/AppState 전체 제외, 모의 인증 HTML",
+    "failure": "미인증·세션 위조·알 수 없는 필드·권한 위조 거절. 결과 불명은 재확인 안내. 공개 프록시는 정확한 GET/POST /identity만 허용하며 /identity/verify·/identity/issue·/control·/feeds/*를 외부에 노출하지 않는다.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "postCommand(request): PublicCommandResult",
+        "plain": "POST /api/commands로 허용 명령 전달",
+        "note": ""
+      },
+      {
+        "sig": "getView(request): ViewResponse",
+        "plain": "세션·요청·현황·운영 조회",
+        "note": ""
+      },
+      {
+        "sig": "transferFile(request): FileResponse",
+        "plain": "첨부 업로드/다운로드 연결",
+        "note": ""
+      },
+      {
+        "sig": "beginLogin(request): LoginChallenge",
+        "plain": "GET /api/auth/start 인증 시작",
+        "note": "SessionManager.beginLogin에 서버 사전 인증 상태 전달; 업무 세션 예외를 다른 API로 확대하지 않음"
+      },
+      {
+        "sig": "completeLogin(request): SessionView",
+        "plain": "POST /api/auth/complete 인증 완료",
+        "note": "확인표·로그인 요청·서버 사전 인증 상태를 SessionManager.establish로 전달"
+      },
+      {
+        "sig": "proxyIdentity(request): IdentityPageResponse",
+        "plain": "GET/POST /identity 모의 인증 화면 중계",
+        "note": "고정된 loopback 제공자의 정확한 /identity만 호출하며 임의 경로·URL·비밀값을 브라우저 입력으로 받지 않는다. 요청 Cookie·X-Mock-Key는 중계하지 않고 필요한 인증 HTML·보안 헤더만 반환한다."
+      }
+    ],
+    "srs": [
+      "SR-BE-001",
+      "SR-BE-003",
+      "SR-BE-006",
+      "SR-BE-028",
+      "SR-BE-029",
+      "SR-BE-030",
+      "SR-BE-031",
+      "SR-BE-032",
+      "SR-BE-034",
+      "SR-BE-027",
+      "SR-BE-035"
+    ],
+    "depends": [
+      "SessionManager",
+      "RequestCommands",
+      "WorkItemCommands",
+      "AfterActionReportCommand",
+      "RequestQueryService",
+      "OpsQueryService",
+      "SharedWorkQueryService",
+      "HistoryAndNotificationQueryService",
+      "PersonnelService",
+      "NightDutyService",
+      "SituationService",
+      "DirectiveService",
+      "AccessManagementService",
+      "AttachmentService"
+    ]
+  },
+  {
+    "id": "ApiClient",
+    "kr": "화면의 API 호출",
+    "domain": "frontend",
+    "layer": "bootstrap",
+    "level": 5,
+    "resp": "브라우저 입력을 API로 보내고 조회·저장·충돌·만료를 화면에 전달한다. 전체 업무 상태·권한 판정·영구 저장은 소유하지 않는다.",
+    "input": "화면의 명시적 조회/저장·공개 번호·버전·제출 키; 로그인 시작 조작·제공자 확인표·로그인 요청 식별값",
+    "output": "허용된 화면 데이터·오류·동일 제출 재확인",
+    "failure": "입력의 역할·행동자·소속으로 서버 권한을 바꾸지 않음. 입력 중 임의 조회·저장 성공 추정 금지.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "query(path, criteria): ViewResponse",
+        "plain": "HTTPS 조회",
+        "note": ""
+      },
+      {
+        "sig": "command(type, input, operationId): CommandResult",
+        "plain": "같은 제출 키를 유지한 HTTPS 저장",
+        "note": ""
+      },
+      {
+        "sig": "upload(resourceKind, file): UploadResult",
+        "plain": "명시적 첨부 전송",
+        "note": ""
+      },
+      {
+        "sig": "startLogin(): LoginNavigation",
+        "plain": "인증 시작 API 호출·제공자 로그인 이동",
+        "note": "GET /api/auth/start; 서버의 허용된 이동 위치 사용"
+      },
+      {
+        "sig": "completeLogin(proof, loginAttempt): SessionView",
+        "plain": "인증 완료 API 호출",
+        "note": "POST /api/auth/complete; 브라우저의 사전 인증 세션과 함께 전달, 역할 값으로 세션 생성 금지"
+      }
+    ],
+    "srs": [
+      "SR-BE-001",
+      "SR-BE-006",
+      "SR-BE-018",
+      "SR-BE-029",
+      "SR-BE-030",
+      "SR-BE-032",
+      "SR-BE-034",
+      "SR-BE-027"
+    ],
+    "depends": [
+      "ApiController"
+    ]
+  },
+  {
+    "id": "RequestRegistrationForm",
+    "kr": "신청 등록 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "직접/대리 입력과 기존 유형별 필수/선택값·첨부를 받아 등록한다. 필수/선택 표시·선택 영역 보존·그룹 오류와 첫 초점을 PC 화면에 연결한다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "submit(input): ViewState",
+        "plain": "입력 확인 후 신청",
+        "note": ""
+      },
+      {
+        "sig": "attach(file): UploadState",
+        "plain": "첨부 진행·실패 표시",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-004",
+      "SR-BE-005",
+      "SR-BE-006",
+      "SR-BE-031",
+      "SR-BE-032",
+      "SR-BE-033"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "RequestDetailWorkspace",
+    "kr": "신청 상세·BNOC 배정 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "권한별 상세·수정·취소·문서 대기·배정을 보여준다. BNOC는 일반/긴급과 작업반 선택·배정 후 분류 정정·후보고 사후 분류를 저장한다. 배정 시각은 서버 결과로 표시하며 요청 내용이 작업지시다. 반장·작업 일정 입력 없음. 대상·처리별 성공/미저장·오류 초점을 구별한다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "업무 답변 반영 완료. 서버 배정 시각 자동 기록·과거 시각 정정 없음. 작업 담당 인원은 자기 작업반 화면에서 선택.",
+    "methods": [
+      {
+        "sig": "open(requestNumber): DetailView",
+        "plain": "허용 상세·작업·편집 가능 행동 표시",
+        "note": ""
+      },
+      {
+        "sig": "save(action, input): ViewState",
+        "plain": "수정·취소·문서 대기·배정·재배정 저장",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-003",
+      "SR-BE-007",
+      "SR-BE-008",
+      "SR-BE-009",
+      "SR-BE-010",
+      "SR-BE-011",
+      "SR-BE-014",
+      "SR-BE-017",
+      "SR-BE-032"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "WorkExecutionPanel",
+    "kr": "작업 처리 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "자기 반 명부에서 선택 담당 인원을 고르고 네 상태·선택 일정·메모·상태별 필수값을 명시적으로 저장한다. 선택 담당 인원과 로그인 완료 처리자는 별도 표시한다. 성공 저장과 재편집·미저장을 구별하고 첫 오류 초점을 연결한다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "selectStatus(status): Draft",
+        "plain": "상태 선택만 반영",
+        "note": ""
+      },
+      {
+        "sig": "saveWork(input): ViewState",
+        "plain": "자기 작업·완료정보·반환 저장",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-012",
+      "SR-BE-013",
+      "SR-BE-014",
+      "SR-BE-015",
+      "SR-BE-030",
+      "SR-BE-032"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "AfterActionReportForm",
+    "kr": "선조치 후보고 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "직접 받은 일을 끝낸 후 완료 사실·실제 작업 시각을 입력해 요청과 완료 작업을 미분류로 함께 제출한다. BNOC가 사후 분류하며 별도 승인 없다. 미완료는 저장하지 않고 입력 유지, 별도 접수/BNOC 전달·역할 전환 없음.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "완료 후보고·미분류·BNOC 사후 분류 확정. 새 미완료 전달 흐름 없음.",
+    "methods": [
+      {
+        "sig": "submitCompleted(input): ViewState",
+        "plain": "완료된 작업 후보고",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-005",
+      "SR-BE-006",
+      "SR-BE-016",
+      "SR-BE-031",
+      "SR-BE-032"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "RequestListAndSearch",
+    "kr": "신청 목록·검색 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "임시 조건과 적용 조건을 분리하고 검색/Enter/초기화에만 조회한다. 성공 조회의 조건·확인 시각과 편집 중 조건·지난 결과를 구별한다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "editFilter(draft): Draft",
+        "plain": "조건만 편집",
+        "note": ""
+      },
+      {
+        "sig": "search(criteria): ViewState",
+        "plain": "허용 범위 목록 검색",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-017",
+      "SR-BE-018",
+      "SR-BE-031",
+      "SR-BE-032"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "TeamScheduleView",
+    "kr": "일·주·월 일정 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "실제 작업 일정과 일정 미정 목록을 구별하고 권한 있는 상세로 이동한다. 달력에서 BNOC가 일정을 정하지 않는다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "화면·기술안: 기존 BNOC 전체 조회/자기 작업반 범위와 Asia/Seoul 날짜, 월요일 주 시작. 일정 수정은 기존 작업반 상세에서만.",
+    "methods": [
+      {
+        "sig": "changePeriod(unit, range): ViewState",
+        "plain": "일·주·월 조회",
+        "note": ""
+      },
+      {
+        "sig": "openWork(workNumber): Navigation",
+        "plain": "해당 작업 상세 이동",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-021",
+      "SR-BE-032"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "BnocOverviewView",
+    "kr": "BNOC 요청 현황 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "기존 요청 단위 집계와 목록·빠른 필터를 유지한다. 전체 공유 작업 현황과 별개 화면이다. PC의 요청 현황(BNOC)에서 요청 건수·조회 성공 조건/시각을 명시한다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "applyFilter(filter): ViewState",
+        "plain": "BNOC 요청 집계와 목록 조회",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-022",
+      "SR-BE-032"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "NotificationInbox",
+    "kr": "내부 알림함",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "현재 수신자의 알림을 읽고 권한 있는 요청 상세로 이동한다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "refresh(): ViewState",
+        "plain": "현재 사용자 알림 조회",
+        "note": ""
+      },
+      {
+        "sig": "openNotification(number): Navigation",
+        "plain": "허용 상세 이동",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-020",
+      "SR-BE-032"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "HistoryPanel",
+    "kr": "처리 이력 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "권한에 따라 걸러진 행위·시각·변경 내용을 읽는다. 저장 원본이나 불필요한 인물정보는 보여주지 않는다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "",
+    "methods": [
+      {
+        "sig": "openHistory(requestNumber): ViewState",
+        "plain": "역할별 처리 이력 조회",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-019",
+      "SR-BE-032",
+      "SR-BE-033"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "OperationsView",
+    "kr": "공유 작업·부대 운영 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "전체 공유 작업·부서 상호 병력/야간·로그인 사용자 GPS/CPCON·공지를 표시한다. 각 부서 담당자는 자기 명부/현황을 관리하고 BNOC는 공지 게시·수정·첨부를 저장한다. 종류별 수집 상태·공개 코드 표기·GPS 정보원/CPCON 정보원을 표시한다. 모의/대회용 설명은 사용자 화면에 넣지 않는다. PC의 부서별 작업 현황에서 작업 단위·핵심 집계·선택 목록을 먼저 표시하고 상세 조건/부서 표는 값 보존 접기를 제공한다. 병력/야간 저장 대상 부서·기준일·결과를 저장 위치에 표시한다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물·실제 운영자료 없음. 모의 시험값은 출처를 명시.",
+    "pending": "업무 답변 반영 완료. 기술값은 개발 명세와 연결하며 실제 외부 연동 조건은 후속으로 표시.",
+    "methods": [
+      {
+        "sig": "readWorkOverview(filter): ViewState",
+        "plain": "전체 작업 집계와 목록",
+        "note": ""
+      },
+      {
+        "sig": "manageRoster(input): ViewState",
+        "plain": "자기 부서 명부 조회·변경",
+        "note": "자기 부서 담당자만 저장, 기본 시연 명부 비움"
+      },
+      {
+        "sig": "readDaily(date): ViewState",
+        "plain": "부서별 병력·야간 상호 조회",
+        "note": ""
+      },
+      {
+        "sig": "saveOwnDepartment(kind, input): ViewState",
+        "plain": "자기 부서 인원/야간 저장",
+        "note": ""
+      },
+      {
+        "sig": "readSituation(kind): ViewState",
+        "plain": "GPS·CPCON 각각의 단계·출처·수집 상태 표시",
+        "note": "실제 수집 상태는 서버 응답으로만 갱신"
+      },
+      {
+        "sig": "openNotices(): ViewState",
+        "plain": "공지 목록·본문·첨부 조회",
+        "note": "모든 로그인 사용자 조회"
+      },
+      {
+        "sig": "publishNotice(title, body, files): ViewState",
+        "plain": "BNOC 공지·첨부 게시",
+        "note": "연결 성공 뒤 목록 갱신; 실패 시 입력 유지"
+      },
+      {
+        "sig": "editNotice(noticeRef, revision, input): ViewState",
+        "plain": "BNOC 공지 제목·본문·첨부 수정",
+        "note": "작성자와 무관한 BNOC 권한, 버전 검사·성공 후 갱신"
+      }
+    ],
+    "srs": [
+      "SR-BE-023",
+      "SR-BE-024",
+      "SR-BE-025",
+      "SR-BE-026",
+      "SR-BE-027",
+      "SR-BE-032",
+      "SR-BE-033",
+      "SR-BE-035"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  },
+  {
+    "id": "AccessManagementView",
+    "kr": "권한 관리 화면",
+    "domain": "frontend",
+    "layer": "screen",
+    "level": 6,
+    "resp": "권한 관리자가 서비스 역할·작업반 권한을 관리한다. 회원가입 화면이 아니며 업무 내용 수정은 하지 않는다.",
+    "input": "사용자 입력·선택·API 화면 응답",
+    "output": "화면 표시·명시적 API 호출·오류/입력 유지",
+    "failure": "화면만으로 권한·저장 성공을 판정하지 않음. 가짜 인물/운영자료 없음.",
+    "pending": "기술안: 최초 관리자 서버 시작 설정 지정·부서 담당자 쓰기 권한 부여. 실운영 복구·인수는 후속 고도화.",
+    "methods": [
+      {
+        "sig": "listAccess(): ViewState",
+        "plain": "현재 서비스 권한 조회",
+        "note": ""
+      },
+      {
+        "sig": "saveAccess(changes): ViewState",
+        "plain": "부여·회수 저장",
+        "note": ""
+      }
+    ],
+    "srs": [
+      "SR-BE-002",
+      "SR-BE-032"
+    ],
+    "depends": [
+      "ApiClient"
+    ]
+  }
+];
+const EDGE_INFO = {
+  "TransactionStore->RelationalDatabase": {
+    "label": "기록 조회·원자적 저장",
+    "kind": "cmd",
+    "request": "조회 조건·변경 집합·고유 키",
+    "response": "기록·커밋·충돌"
+  },
+  "SessionManager->AirForceSSO": {
+    "label": "운영 모드 · 실제 인증 연결",
+    "kind": "query",
+    "request": "후속 실제 인증 규격의 검증 요청",
+    "response": "검증된 운영 신원 또는 거절"
+  },
+  "SessionManager->TransactionStore": {
+    "label": "현재 서비스 권한 조회",
+    "kind": "query",
+    "request": "검증된 사용자 식별자",
+    "response": "허용 역할·부서·작업반"
+  },
+  "SessionManager->DemoIdentityProvider": {
+    "label": "대회 모드 · 모의 인증 검증",
+    "kind": "query",
+    "request": "단회 확인표·로그인 요청 식별값, loopback /identity GET/POST",
+    "response": "검증된 시험 식별자·모의 출처 또는 거절, 모의 인증 HTML"
+  },
+  "RequestCommands->AccessPolicy": {
+    "label": "현재 역할·대상 권한 검사",
+    "kind": "calc",
+    "request": "행동·서버 컨텍스트·대상",
+    "response": "허용/거절"
+  },
+  "RequestCommands->TransactionStore": {
+    "label": "중복·버전 확인 후 함께 저장",
+    "kind": "cmd",
+    "request": "제출 키·대상·업무 변경",
+    "response": "성공·충돌·실패"
+  },
+  "RequestCommands->RequestStatusCalculator": {
+    "label": "요청 전체 상태 계산",
+    "kind": "calc",
+    "request": "현재 요청·작업",
+    "response": "종합 상태"
+  },
+  "RequestCommands->NotificationRules": {
+    "label": "변경 사건의 알림 계산",
+    "kind": "calc",
+    "request": "전후 상태·등록/배정 사건",
+    "response": "수신자별 알림"
+  },
+  "RequestCommands->AttachmentService": {
+    "label": "업로드한 첨부 연결 확인",
+    "kind": "cmd",
+    "request": "요청·허용된 임시 첨부",
+    "response": "유효 연결 또는 오류"
+  },
+  "WorkItemCommands->AccessPolicy": {
+    "label": "현재 역할·대상 권한 검사",
+    "kind": "calc",
+    "request": "행동·서버 컨텍스트·대상",
+    "response": "허용/거절"
+  },
+  "WorkItemCommands->TransactionStore": {
+    "label": "중복·버전 확인 후 함께 저장",
+    "kind": "cmd",
+    "request": "제출 키·대상·업무 변경",
+    "response": "성공·충돌·실패"
+  },
+  "WorkItemCommands->RequestStatusCalculator": {
+    "label": "최신 전체 작업으로 상태 계산",
+    "kind": "calc",
+    "request": "요청·유효 작업",
+    "response": "종합 상태"
+  },
+  "WorkItemCommands->NotificationRules": {
+    "label": "반환·정정·상태 알림 계산",
+    "kind": "calc",
+    "request": "전후 상태",
+    "response": "내부 알림"
+  },
+  "WorkItemCommands->PersonnelService": {
+    "label": "일일 병력 현황 처리",
+    "kind": "cmd",
+    "request": "현재 작업반·담당 인원 참조",
+    "response": "신규 자기 반 명부 소속/활성 검사, 이미 저장된 담당 인원 참조 유지 가능"
+  },
+  "AfterActionReportCommand->AccessPolicy": {
+    "label": "현재 역할·대상 권한 검사",
+    "kind": "calc",
+    "request": "행동·서버 컨텍스트·대상",
+    "response": "허용/거절"
+  },
+  "AfterActionReportCommand->TransactionStore": {
+    "label": "중복·버전 확인 후 함께 저장",
+    "kind": "cmd",
+    "request": "제출 키·대상·업무 변경",
+    "response": "성공·충돌·실패"
+  },
+  "AfterActionReportCommand->NotificationRules": {
+    "label": "BNOC 후보고 알림 계산",
+    "kind": "calc",
+    "request": "후보고 사건",
+    "response": "BNOC 알림"
+  },
+  "AfterActionReportCommand->AttachmentService": {
+    "label": "후보고 첨부 연결 확인",
+    "kind": "cmd",
+    "request": "임시 첨부 참조",
+    "response": "연결 검증 결과"
+  },
+  "PersonnelService->AccessPolicy": {
+    "label": "현재 역할·대상 권한 검사",
+    "kind": "calc",
+    "request": "행동·서버 컨텍스트·대상",
+    "response": "허용/거절"
+  },
+  "PersonnelService->TransactionStore": {
+    "label": "중복·버전 확인 후 함께 저장",
+    "kind": "cmd",
+    "request": "제출 키·대상·업무 변경",
+    "response": "성공·충돌·실패"
+  },
+  "NightDutyService->AccessPolicy": {
+    "label": "현재 역할·대상 권한 검사",
+    "kind": "calc",
+    "request": "행동·서버 컨텍스트·대상",
+    "response": "허용/거절"
+  },
+  "NightDutyService->TransactionStore": {
+    "label": "중복·버전 확인 후 함께 저장",
+    "kind": "cmd",
+    "request": "제출 키·대상·업무 변경",
+    "response": "성공·충돌·실패"
+  },
+  "NightDutyService->PersonnelService": {
+    "label": "일일 병력 현황 처리",
+    "kind": "cmd",
+    "request": "자기 부서·근무자 참조",
+    "response": "신규 자기 명부 검사 또는 기존 과거 기록 참조 유지/정정 결과"
+  },
+  "AccessManagementService->AccessPolicy": {
+    "label": "현재 역할·대상 권한 검사",
+    "kind": "calc",
+    "request": "행동·서버 컨텍스트·대상",
+    "response": "허용/거절"
+  },
+  "AccessManagementService->TransactionStore": {
+    "label": "중복·버전 확인 후 함께 저장",
+    "kind": "cmd",
+    "request": "제출 키·대상·업무 변경",
+    "response": "성공·충돌·실패"
+  },
+  "RequestQueryService->AccessPolicy": {
+    "label": "조회 범위·응답 필드 제한",
+    "kind": "calc",
+    "request": "현재 사용자·조회 대상",
+    "response": "허용 범위"
+  },
+  "RequestQueryService->TransactionStore": {
+    "label": "조건에 맞는 저장 기록 조회",
+    "kind": "query",
+    "request": "권한 범위·필터",
+    "response": "저장된 기록"
+  },
+  "OpsQueryService->AccessPolicy": {
+    "label": "조회 범위·응답 필드 제한",
+    "kind": "calc",
+    "request": "현재 사용자·조회 대상",
+    "response": "허용 범위"
+  },
+  "OpsQueryService->TransactionStore": {
+    "label": "조건에 맞는 저장 기록 조회",
+    "kind": "query",
+    "request": "권한 범위·필터",
+    "response": "저장된 기록"
+  },
+  "SharedWorkQueryService->AccessPolicy": {
+    "label": "조회 범위·응답 필드 제한",
+    "kind": "calc",
+    "request": "현재 사용자·조회 대상",
+    "response": "허용 범위"
+  },
+  "SharedWorkQueryService->TransactionStore": {
+    "label": "조건에 맞는 저장 기록 조회",
+    "kind": "query",
+    "request": "권한 범위·필터",
+    "response": "저장된 기록"
+  },
+  "HistoryAndNotificationQueryService->AccessPolicy": {
+    "label": "조회 범위·응답 필드 제한",
+    "kind": "calc",
+    "request": "현재 사용자·조회 대상",
+    "response": "허용 범위"
+  },
+  "HistoryAndNotificationQueryService->TransactionStore": {
+    "label": "조건에 맞는 저장 기록 조회",
+    "kind": "query",
+    "request": "권한 범위·필터",
+    "response": "저장된 기록"
+  },
+  "SituationService->AccessPolicy": {
+    "label": "조회 범위·응답 필드 제한",
+    "kind": "calc",
+    "request": "현재 사용자·조회 대상",
+    "response": "허용 범위"
+  },
+  "SituationService->TransactionStore": {
+    "label": "종류별 수집 결과 저장·조회",
+    "kind": "cmd",
+    "request": "종류·범위·원본/시도 시각·출처·유효 결과 또는 실패",
+    "response": "각 종류의 마지막 성공 값·마지막 수집 결과"
+  },
+  "SituationService->ExternalSituationFeed": {
+    "label": "운영 모드 · 실제 GPS",
+    "kind": "query",
+    "request": "GPS 원본 조회·인증",
+    "response": "실제 GPS 응답·연결 오류"
+  },
+  "SituationService->ExternalCpconFeed": {
+    "label": "운영 모드 · 실제 CPCON",
+    "kind": "query",
+    "request": "CPCON 원본 조회·인증·범위",
+    "response": "실제 CPCON 응답·연결 오류"
+  },
+  "SituationService->DemoSituationFeed": {
+    "label": "대회 모드 · GPS/CPCON 시험 응답",
+    "kind": "query",
+    "request": "정보 종류 gps 또는 cpcon",
+    "response": "종류별 모의 단계·시각·출처 또는 오류/지연"
+  },
+  "DirectiveService->AccessPolicy": {
+    "label": "현재 역할·대상 권한 검사",
+    "kind": "calc",
+    "request": "행동·서버 컨텍스트·대상",
+    "response": "허용/거절"
+  },
+  "DirectiveService->TransactionStore": {
+    "label": "중복·버전 확인 후 함께 저장",
+    "kind": "cmd",
+    "request": "제출 키·대상·업무 변경",
+    "response": "성공·충돌·실패"
+  },
+  "DirectiveService->AttachmentService": {
+    "label": "공지 첨부 연결 검증",
+    "kind": "cmd",
+    "request": "BNOC·공지 대상·임시 첨부 참조",
+    "response": "유효한 연결 또는 오류"
+  },
+  "AttachmentService->AccessPolicy": {
+    "label": "현재 역할·대상 권한 검사",
+    "kind": "calc",
+    "request": "행동·서버 컨텍스트·대상",
+    "response": "허용/거절"
+  },
+  "AttachmentService->TransactionStore": {
+    "label": "중복·버전 확인 후 함께 저장",
+    "kind": "cmd",
+    "request": "제출 키·대상·업무 변경",
+    "response": "성공·충돌·실패"
+  },
+  "AttachmentService->FileObjectStore": {
+    "label": "파일 내용 저장·읽기",
+    "kind": "cmd",
+    "request": "파일 내용 또는 허용 참조",
+    "response": "내용·존재·저장 오류"
+  },
+  "ApiController->SessionManager": {
+    "label": "인증 시작·완료 또는 업무 세션 확인",
+    "kind": "query",
+    "request": "인증 경로의 서버 사전 인증 상태·확인표·로그인 요청, 또는 업무 API의 세션 참조, 공개 /identity 조회 조건/폼",
+    "response": "로그인 이동 안내·인증된 세션 또는 업무 ActorContext/거절, 모의 인증 HTML"
+  },
+  "ApiController->RequestCommands": {
+    "label": "허용된 신청·확인·배정 처리",
+    "kind": "cmd",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->WorkItemCommands": {
+    "label": "허용된 작업·반환·재배정 처리",
+    "kind": "cmd",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->AfterActionReportCommand": {
+    "label": "허용된 완료 선조치 후보고",
+    "kind": "cmd",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->RequestQueryService": {
+    "label": "허용된 신청 목록·상세 조회",
+    "kind": "query",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->OpsQueryService": {
+    "label": "허용된 기존 현황·일정 조회",
+    "kind": "query",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->SharedWorkQueryService": {
+    "label": "허용된 전체 공유 작업 집계",
+    "kind": "query",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->HistoryAndNotificationQueryService": {
+    "label": "허용된 이력·내부 알림 조회",
+    "kind": "query",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->PersonnelService": {
+    "label": "허용된 일일 병력 현황 처리",
+    "kind": "cmd",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->NightDutyService": {
+    "label": "허용된 야간 근무 현황 처리",
+    "kind": "cmd",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->SituationService": {
+    "label": "허용된 GPS·CPCON 저장 상태 조회",
+    "kind": "query",
+    "request": "검증된 컨텍스트·정보 종류",
+    "response": "해당 종류의 허용된 단계·시각·모의 출처·수집 상태"
+  },
+  "ApiController->DirectiveService": {
+    "label": "허용된 지시사항 게시·조회",
+    "kind": "cmd",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->AccessManagementService": {
+    "label": "허용된 서비스 권한 관리",
+    "kind": "cmd",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiController->AttachmentService": {
+    "label": "허용된 첨부 검증·요청 연결",
+    "kind": "cmd",
+    "request": "검증된 컨텍스트·허용 입력",
+    "response": "공개 결과 또는 도메인 결과"
+  },
+  "ApiClient->ApiController": {
+    "label": "HTTPS API 요청 · 결과/오류 응답",
+    "kind": "cmd",
+    "request": "허용 JSON·공개 번호·버전·파일; 인증 시작/완료 요청·확인표·로그인 요청 식별값",
+    "response": "허용 화면 데이터·성공·오류; 인증 이동 안내·세션 결과"
+  },
+  "RequestRegistrationForm->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "RequestDetailWorkspace->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "WorkExecutionPanel->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "AfterActionReportForm->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "RequestListAndSearch->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "TeamScheduleView->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "BnocOverviewView->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "NotificationInbox->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "HistoryPanel->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "OperationsView->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  },
+  "AccessManagementView->ApiClient": {
+    "label": "입력/조회 요청 · 화면 결과",
+    "kind": "cmd",
+    "request": "화면의 허용 입력·조회 조건",
+    "response": "화면 데이터·진행·오류"
+  }
+};
+const DEPLOY_SRS = [];
+const DASHED = new Set();
+const ARC_TOP = new Set();
+const ARC_BOTTOM = new Set();
+
+// ---------- derived ----------
+const byId = Object.fromEntries(CLASSES.map(c=>[c.id,c]));
+const srToClasses = {};
+CLASSES.forEach(c=>c.srs.forEach(s=>{(srToClasses[s]=srToClasses[s]||[]).push(c.id);}));
+function esc(s){return String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));}
+const css = getComputedStyle(document.documentElement);
+const cssv = n => css.getPropertyValue(n).trim();
+
+const lineDot = color => `<span class="dot" style="background:none;border-radius:0;border-top:2px solid ${color};width:14px;height:0;"></span>`;
+document.getElementById("legend").innerHTML =
+  Object.entries(LAYERS).map(([id,l])=>
+    `<span><span class="dot" style="background:${cssv('--l-'+id)}"></span>${esc(l.label)} 상자</span>`
+  ).join("")
+  + `<span><span class="dot" style="background:${cssv('--accent')}"></span>선택한 요구사항</span>`
+  + `<span>${lineDot(cssv('--edge-cmd'))}상태를 바꾸는 명령</span>`
+  + `<span>${lineDot(cssv('--edge-query'))}읽기 전용 조회</span>`
+  + `<span>${lineDot(cssv('--edge-calc'))}순수 판정 · 초기화</span>`
+;
+
+
+// ---------- layout ----------
+const NODE_W = 236, COL_W = 410, ROW_PITCH = 245, NODE_H_ASSUMED = 202;
+// Keep screen cards in two columns, inside one frontend boundary.
+let screenIndex=0; CLASSES.forEach(c=>{if(c.layer==="screen") c.level=6+(screenIndex++%2);});
+const levelCount = {}; CLASSES.forEach(c=>{levelCount[c.level]=(levelCount[c.level]||0)+1;});
+const maxRows = Math.max(...Object.values(levelCount));
+const TOP_PAD = 105;
+const CENTER_Y = TOP_PAD + (maxRows*ROW_PITCH)/2;
+const levelSeen = {};
+CLASSES.forEach(c=>{
+  const n = levelCount[c.level];
+  const i = levelSeen[c.level] || 0; levelSeen[c.level] = i+1;
+  c._x = 30 + c.level*COL_W;
+  c._y = Math.round(CENTER_Y + (i-(n-1)/2)*ROW_PITCH - NODE_H_ASSUMED/2);
+});
+const CANVAS_W = 30 + (Math.max(...CLASSES.map(c=>c.level))+1)*COL_W;
+const CANVAS_H = TOP_PAD + maxRows*ROW_PITCH + NODE_H_ASSUMED + 60;
+
+const mapScroll = document.getElementById("map-scroll");
+const mapZoomWrap = document.getElementById("map-zoomwrap");
+const mapInner = document.getElementById("map-inner");
+mapInner.style.width = CANVAS_W+"px";
+mapInner.style.height = CANVAS_H+"px";
+mapZoomWrap.style.width = CANVAS_W+"px";
+mapZoomWrap.style.height = CANVAS_H+"px";
+
+// Runtime boundaries remain visible independently from the function colors.
+for(const [domain,from,to,label] of [['external',0,0,'외부 연동 · 영구 저장소'],['backend',1,4,'백엔드 서버 · 내부 모듈'],['frontend',5,7,'프런트엔드 · 브라우저']]){
+ const zone=document.createElement('div');zone.className='zone '+domain;zone.dataset.domain=domain;
+ zone.style.cssText=`left:${15+from*COL_W}px;top:8px;width:${(to-from+1)*COL_W-16}px;height:${CANVAS_H-16}px`;
+ zone.innerHTML=`<span class="zone-label">${esc(label)}</span>`;mapInner.appendChild(zone);
+}
+// edges (svg, drawn first so nodes sit above)
+const svgNS = "http://www.w3.org/2000/svg";
+const svg = document.createElementNS(svgNS,"svg");
+svg.setAttribute("id","edges");
+svg.setAttribute("width",CANVAS_W); svg.setAttribute("height",CANVAS_H);
+svg.innerHTML = `<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.8" stroke-linecap="round"/></marker></defs>`;
+mapInner.appendChild(svg);
+
+const edgeEls = [];
+CLASSES.forEach(c=>c.depends.forEach(d=>{
+  const t = byId[d];
+  const key = c.id+"->"+d;
+  const info = EDGE_INFO[key] || {label:"", kind:"calc"};
+  const x1 = c._x, y1 = c._y + NODE_H_ASSUMED/2;
+  const x2 = t._x + NODE_W, y2 = t._y + NODE_H_ASSUMED/2;
+  let d_attr;
+  if(c.level === t.level){
+    const lane=x1-26; d_attr=`M ${x1} ${y1} L ${lane} ${y1} L ${lane} ${y2} L ${t._x} ${y2}`;
+  } else if(ARC_TOP.has(key) || ARC_BOTTOM.has(key)){
+    // route through the empty inter-column gaps, then along a top/bottom lane clear of every node
+    const laneY = ARC_TOP.has(key) ? 25 : CANVAS_H-25;
+    const riseX = x1 - 40, dropX = x2 + 40;
+    d_attr = `M ${x1} ${y1} L ${riseX} ${y1} L ${riseX} ${laneY} L ${dropX} ${laneY} L ${dropX} ${y2} L ${x2} ${y2}`;
+  } else d_attr = `M ${x1} ${y1} L ${x2} ${y2}`;
+
+  const g = document.createElementNS(svgNS,"g");
+  g.setAttribute("class","edge-group kind-"+info.kind);
+  g.dataset.source = c.id; g.dataset.target = d;
+  svg.appendChild(g);
+
+  const path = document.createElementNS(svgNS,"path");
+  path.setAttribute("d", d_attr);
+  path.setAttribute("class","edge"+(DASHED.has(key)?" dashed":""));
+  g.appendChild(path);
+
+  if(info.label){
+    const len = path.getTotalLength();
+    const pt = path.getPointAtLength(len/2);
+    const text = document.createElementNS(svgNS,"text");
+    text.setAttribute("x", pt.x); text.setAttribute("y", pt.y);
+    text.setAttribute("class","edge-label");
+    text.setAttribute("text-anchor","middle");
+    text.setAttribute("dominant-baseline","central");
+    text.textContent = info.label;
+    g.appendChild(text);
+    const bbox = text.getBBox();
+    const pad = 3;
+    const rect = document.createElementNS(svgNS,"rect");
+    rect.setAttribute("x", bbox.x-pad); rect.setAttribute("y", bbox.y-pad);
+    rect.setAttribute("width", bbox.width+pad*2); rect.setAttribute("height", bbox.height+pad*2);
+    rect.setAttribute("rx",3);
+    rect.setAttribute("class","edge-label-bg");
+    g.insertBefore(rect, text);
+  }
+  edgeEls.push(g);
+}));
+
+// nodes
+CLASSES.forEach(c=>{
+  const el = document.createElement("div");
+  el.className = "node"; el.id = "n-"+c.id; el.tabIndex = 0; el.setAttribute("role","button"); el.setAttribute("aria-label",DOMAINS[c.domain].label+" · "+c.kr); el.dataset.domain=c.domain;
+  el.style.left = c._x+"px"; el.style.top = c._y+"px"; el.style.width = NODE_W+"px";
+  const methodsPreview = c.methods.slice(0,2).map(m=>`<b>${esc(m.plain)}</b>`).join("<br>");
+  const more = c.methods.length>2 ? `<br><span class="node-more">그 외 ${c.methods.length-2}가지 더</span>` : "";
+  el.innerHTML = `
+    <div class="node-bar" style="background:${cssv('--l-'+c.layer)}"></div>
+    <div class="node-body">
+      <div class="node-kr">${esc(c.kr)}</div>
+      <div class="node-head2"><span class="node-id">${esc(c.id)}</span><span class="node-tag">${esc(DOMAINS[c.domain].label)}</span></div>
+      <div class="node-resp" title="${esc(c.resp)}">${esc(c.resp)}</div>
+      <div class="node-methods">${methodsPreview}${more}</div>
+      <div class="node-foot">기능 명세 ${c.srs.length}개${c.pending?" · 설계 조건":""}</div>
+    </div>`;
+  el.addEventListener("click",()=>{ if(suppressNextClick) return; selectNode(c.id); });
+  el.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); selectNode(c.id);} });
+  mapInner.appendChild(el);
+});
+
+// ---------- zoom & pan ----------
+let zoom = 1;
+let suppressNextClick = false;
+const ZOOM_MIN = 0.35, ZOOM_MAX = 2.5, ZOOM_STEP = 1.2;
+
+function updateZoomLabel(){
+  document.getElementById("zoom-label").textContent = Math.round(zoom*100)+"%";
+}
+function applyZoomSize(){
+  mapInner.style.transform = `scale(${zoom})`;
+  mapZoomWrap.style.width = (CANVAS_W*zoom)+"px";
+  mapZoomWrap.style.height = (CANVAS_H*zoom)+"px";
+}
+function setZoom(newZoom, clientX, clientY){
+  newZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, newZoom));
+  if(Math.abs(newZoom-zoom) < 0.001) return;
+  const rect = mapScroll.getBoundingClientRect();
+  const cx = clientX != null ? clientX-rect.left : rect.width/2;
+  const cy = clientY != null ? clientY-rect.top : rect.height/2;
+  const contentX = (mapScroll.scrollLeft+cx)/zoom;
+  const contentY = (mapScroll.scrollTop+cy)/zoom;
+  zoom = newZoom;
+  applyZoomSize();
+  mapScroll.scrollLeft = contentX*zoom-cx;
+  mapScroll.scrollTop = contentY*zoom-cy;
+  updateZoomLabel();
+}
+mapScroll.addEventListener("wheel", e=>{
+  e.preventDefault();
+  const dir = e.deltaY > 0 ? -1 : 1;
+  setZoom(zoom*Math.pow(ZOOM_STEP,dir), e.clientX, e.clientY);
+}, {passive:false});
+document.getElementById("zoom-in").addEventListener("click",()=>setZoom(zoom*ZOOM_STEP));
+document.getElementById("zoom-out").addEventListener("click",()=>setZoom(zoom/ZOOM_STEP));
+document.getElementById("zoom-fit").addEventListener("click",()=>{
+  const fitZoom = Math.min((mapScroll.clientWidth-4)/CANVAS_W, (mapScroll.clientHeight-4)/CANVAS_H, 1);
+  zoom = Math.max(ZOOM_MIN, fitZoom);
+  applyZoomSize();
+  mapScroll.scrollLeft = 0; mapScroll.scrollTop = 0;
+  updateZoomLabel();
+});
+
+let panState = null;
+mapScroll.addEventListener("mousedown", e=>{
+  if(e.button !== 0) return;
+  panState = {x:e.clientX, y:e.clientY, left:mapScroll.scrollLeft, top:mapScroll.scrollTop, moved:false};
+});
+window.addEventListener("mousemove", e=>{
+  if(!panState) return;
+  const dx = e.clientX-panState.x, dy = e.clientY-panState.y;
+  if(!panState.moved && Math.hypot(dx,dy) > 4){
+    panState.moved = true;
+    document.body.classList.add("panning-active");
+  }
+  if(panState.moved){
+    mapScroll.scrollLeft = panState.left-dx;
+    mapScroll.scrollTop = panState.top-dy;
+  }
+});
+window.addEventListener("mouseup", ()=>{
+  if(!panState) return;
+  document.body.classList.remove("panning-active");
+  if(panState.moved){
+    suppressNextClick = true;
+    setTimeout(()=>{ suppressNextClick = false; }, 0);
+  }
+  panState = null;
+});
+
+// ---------- selection ----------
+const srSelect=document.getElementById('sr-select');
+const moduleSelect=document.getElementById('module-select');
+function setRoute(kind,id){history.replaceState(null,'','#'+kind+'='+encodeURIComponent(id));}
+function centerNode(id){const c=byId[id];mapScroll.scrollLeft=(c._x+NODE_W/2)*zoom-mapScroll.clientWidth/2;mapScroll.scrollTop=(c._y+NODE_H_ASSUMED/2)*zoom-mapScroll.clientHeight/2;}
+function clearHighlight(){document.querySelectorAll('.node').forEach(n=>n.classList.remove('dim','selected'));edgeEls.forEach(p=>p.classList.remove('dim','hl'));}
+function clearSrHighlight(){document.querySelectorAll('.node').forEach(n=>n.classList.remove('sr-hl'));document.getElementById('sr-context').style.display='none';srSelect.value='';}
+function selectNode(id,route=true){
+ const c=byId[id];if(!c)return;
+ clearHighlight();
+ const neighbors=new Set([id,...c.depends,...CLASSES.filter(o=>o.depends.includes(id)).map(o=>o.id)]);
+ document.querySelectorAll('.node').forEach(n=>{n.classList.toggle('dim',!neighbors.has(n.id.slice(2)));n.classList.toggle('selected',n.id==='n-'+id);n.setAttribute('aria-pressed',String(n.id==='n-'+id));});
+ edgeEls.forEach(p=>{const related=p.dataset.source===id||p.dataset.target===id;p.classList.toggle('hl',related);p.classList.toggle('dim',!related);});
+ moduleSelect.value=id;renderPanel(id);centerNode(id);if(route)setRoute('module',id);
+}
+function bindLinks(scope){
+ scope.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>selectNode(b.dataset.jump));
+ scope.querySelectorAll('[data-sr]').forEach(b=>b.onclick=()=>applySrHighlight(b.dataset.sr));
+}
+function renderPanel(id){
+ const c=byId[id], panel=document.getElementById('panel');
+ const methods=c.methods.map(m=>`<div class="method"><div class="plain">${esc(m.plain)}${m.note?' — '+esc(m.note):''}</div><div class="sig">${esc(m.sig)}</div></div>`).join('');
+ const relations=c.depends.map(d=>{const e=EDGE_INFO[id+'->'+d];return `<div class="connection"><button class="chip dep" data-jump="${esc(d)}">${esc(byId[d].kr)} · ${esc(DOMAINS[byId[d].domain].label)}</button><p><b>전달:</b> ${esc(e.request)}<br><b>응답:</b> ${esc(e.response)}</p></div>`;}).join('');
+ const callers=CLASSES.filter(o=>o.depends.includes(id)).map(o=>`<button class="chip dep" data-jump="${esc(o.id)}">${esc(o.kr)}</button>`).join('');
+ panel.innerHTML=`<span class="pkr">${esc(c.kr)}</span> <span class="pid" style="background:${cssv('--l-'+c.layer)}">${esc(c.id)}</span><span class="player">${esc(DOMAINS[c.domain].label)} · ${esc(LAYERS[c.layer].label)} · <a href="아키텍처설계.md#${id.toLowerCase()}">문서의 모듈 계약</a></span><div class="presp">${esc(c.resp)}</div>
+ <div class="contract-grid"><div class="contract"><b>받는 값</b>${esc(c.input)}</div><div class="contract"><b>내보내는 값</b>${esc(c.output)}</div></div>
+ <div class="contract"><b>실패·금지 조건</b>${esc(c.failure)}</div>${c.pending?`<p class="pending"><b>설계값·후속 조건:</b> ${esc(c.pending)}</p>`:''}
+ <div class="row-label">함수별 행동·입출력</div><div class="methods-full">${methods}</div>
+ <div class="row-label">호출 대상 · 전달 값과 응답</div>${relations||'<span class="empty">호출할 내부 모듈 없음</span>'}
+ <div class="row-label">이 모듈을 호출하는 곳</div><div class="chips">${callers||'<span class="empty">외부 입력 또는 화면에서 시작</span>'}</div>
+ <div class="row-label">배정된 시스템 요구사항</div><div class="chips">${c.srs.map(s=>`<button class="chip sr" data-sr="${s}">${esc(SRS[s].t)} · ${s}</button>`).join('')}</div>`;
+ bindLinks(panel);
+}
+function applySrHighlight(id,route=true){
+ const s=SRS[id];if(!s){clearSrHighlight();return;}
+ clearHighlight();clearSrHighlight();srSelect.value=id;
+ const owners=srToClasses[id]||[];
+ document.querySelectorAll('.node').forEach(n=>{n.classList.toggle('sr-hl',owners.includes(n.id.slice(2)));n.classList.toggle('dim',!owners.includes(n.id.slice(2)));});
+ edgeEls.forEach(e=>{const hit=owners.includes(e.dataset.source)&&owners.includes(e.dataset.target);e.classList.toggle('hl',hit);e.classList.toggle('dim',!hit);});
+ const ctx=document.getElementById('sr-context');ctx.style.display='block';
+ ctx.innerHTML=`<h2>${esc(s.t)}</h2><p class="requirement-meta">${id} · ${esc(s.status)} · <a href="시스템요구사항.md#${id.toLowerCase()}">기능 명세 원문</a></p><p>${esc(s.x)}</p>
+ <div class="contract-grid"><div class="contract"><b>입력</b>${esc(s.input)}</div><div class="contract"><b>출력</b>${esc(s.output)}</div></div><p><b>실패·금지:</b> ${esc(s.failure)}</p>
+ ${s.pending?`<p class="pending"><b>설계값·후속 조건:</b> ${esc(s.pending)}</p>`:''}
+ <p><b>요구사항·유스케이스 근거:</b> ${s.sources.map(source=>`<a href="${esc(source.href)}">${esc(source.label)}</a>`).join(' · ')}</p>
+ <div class="chips">${owners.map(cid=>`<button class="chip" data-jump="${cid}">${esc(DOMAINS[byId[cid].domain].label)} · ${esc(byId[cid].kr)}</button>`).join('')}</div>`;
+ bindLinks(ctx);if(owners[0])centerNode(owners[0]);if(route)setRoute('sr',id);
+}
+Object.entries(SRS).forEach(([id,s])=>{const opt=document.createElement('option');opt.value=id;opt.textContent=s.t+' · '+id;srSelect.appendChild(opt);});
+for(const [domain,description] of Object.entries(DOMAINS)){
+ const group=document.createElement('optgroup');group.label=description.label;
+ CLASSES.filter(c=>c.domain===domain).forEach(c=>{const option=document.createElement('option');option.value=c.id;option.textContent=c.kr;group.appendChild(option);});moduleSelect.appendChild(group);
+}
+moduleSelect.onchange=()=>{if(moduleSelect.value)selectNode(moduleSelect.value);};srSelect.onchange=()=>applySrHighlight(srSelect.value);
+document.getElementById('sr-clear').onclick=()=>{clearSrHighlight();clearHighlight();moduleSelect.value='';history.replaceState(null,'',location.pathname+location.search);};
+mapScroll.addEventListener('click',e=>{if(!suppressNextClick&&!e.target.closest('.node')){clearHighlight();clearSrHighlight();}});
+document.querySelectorAll('[data-domain]').forEach(button=>{if(button.tagName!=='BUTTON')return;button.onclick=()=>{
+ clearSrHighlight();clearHighlight();const domain=button.dataset.domain;
+ const target=domain==='frontend'?'ApiClient':domain==='backend'?'ApiController':domain==='storage'?'RelationalDatabase':'AirForceSSO';
+ selectNode(target);document.querySelectorAll('.node').forEach(n=>n.classList.toggle('dim',n.dataset.domain!==domain));
+};});
+const review=document.getElementById('review-list');review.innerHTML=Object.entries(SRS).filter(([,s])=>s.pending).map(([id,s])=>`<div><button class="chip sr" data-sr="${id}">${esc(s.t)}</button><p>${esc(s.pending)}</p></div>`).join('');bindLinks(review);
+function loadRoute(){const params=new URLSearchParams(location.hash.slice(1));if(SRS[params.get('sr')])applySrHighlight(params.get('sr'),false);else if(byId[params.get('module')])selectNode(params.get('module'),false);else selectNode('ApiController',false);}
+window.addEventListener('hashchange',loadRoute);loadRoute();
+</script>
+
+</body></html>

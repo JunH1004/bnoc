@@ -1,0 +1,29 @@
+{
+  "name": "bnoc-service",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "test": "npm --prefix frontend test",
+    "test:e2e": "node scripts/bnoc-runtime.mjs test-ui",
+    "test:provider": "node --test mock-provider/server.test.mjs",
+    "server:build": "node scripts/bnoc-runtime.mjs build",
+    "server:start": "node scripts/bnoc-runtime.mjs start",
+    "server:verify-start": "node scripts/bnoc-runtime.mjs verify-start",
+    "server:stop": "node scripts/bnoc-runtime.mjs stop",
+    "server:status": "node scripts/bnoc-runtime.mjs status",
+    "server:public-start": "node scripts/bnoc-public.mjs start",
+    "server:public-status": "node scripts/bnoc-public.mjs status",
+    "server:public-restart": "node scripts/bnoc-public.mjs restart",
+    "server:public-stop": "node scripts/bnoc-public.mjs stop",
+    "test:server": "node scripts/bnoc-runtime.mjs test-api",
+    "test:server-ui": "node scripts/bnoc-runtime.mjs test-ui",
+    "test:server-storage": "node scripts/verify-server-storage.mjs concurrency && node scripts/verify-server-storage.mjs rollback && node scripts/verify-server-storage.mjs persistence",
+    "test:server-sensitivity": "node scripts/verify-server-sensitivity.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
